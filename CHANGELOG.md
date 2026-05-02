@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.17 - 2026-05-02
+
+Bug fixes:
+
+- Require `salus-it600-client 0.4.6` so FC600 fan mode writes use the local
+  gateway payload accepted by the official Salus app.
+
 ## 0.7.11 - 2026-04-29
 
 Polish:
