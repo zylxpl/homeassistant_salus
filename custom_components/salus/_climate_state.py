@@ -20,7 +20,6 @@ from homeassistant.components.climate.const import (
 )
 from salus_it600.const import TEMPERATURE_SCALE
 from salus_it600.device_models import (
-    MODEL_FC600,
     SQ610_HOLD_AUTO,
     SQ610_HOLD_PERMANENT,
     SQ610_HOLD_STANDBY,
@@ -29,6 +28,7 @@ from salus_it600.device_models import (
     SQ610_MODE_HEAT,
     SQ610_RUNNING_COOL,
     SQ610_RUNNING_HEAT,
+    is_fan_coil_model,
     is_sq610_model,
 )
 
@@ -119,8 +119,8 @@ def is_sq610_device(device: Any) -> bool:
 
 
 def is_fc600_device(device: Any) -> bool:
-    """Return whether the device is an FC600 fan coil."""
-    return getattr(device, "model", None) == MODEL_FC600
+    """Return whether the device is an FC600-family fan coil."""
+    return is_fan_coil_model(getattr(device, "model", None))
 
 
 def build_climate_view_state(

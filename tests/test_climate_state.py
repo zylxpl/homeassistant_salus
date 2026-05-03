@@ -287,6 +287,35 @@ def test_fc600_fan_modes_are_exposed() -> None:
     assert state.supported_features & ClimateEntityFeature.FAN_MODE
 
 
+def test_fc600nh_variant_is_treated_as_fan_coil() -> None:
+    state = build_climate_view_state(
+        _device(
+            model="FC600NH",
+            hvac_mode=HVACMode.COOL,
+            hvac_action=CURRENT_HVAC_COOL,
+            preset_modes=[
+                RAW_PRESET_FOLLOW_SCHEDULE,
+                "Permanent Hold",
+                RAW_PRESET_ECO,
+                PRESET_OFF,
+            ],
+            fan_mode=FAN_MODE_HIGH,
+            fan_modes=[FAN_MODE_AUTO, FAN_MODE_HIGH],
+        ),
+        {},
+    )
+
+    assert state.supports_cooling is True
+    assert state.hvac_modes == [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]
+    assert state.hvac_mode == HVACMode.COOL
+    assert state.preset_modes == [
+        PRESET_FOLLOW_SCHEDULE,
+        PRESET_PERMANENT_HOLD,
+        PRESET_ECO,
+    ]
+    assert state.fan_modes == ["auto", "high"]
+
+
 def test_fc600_off_preset_maps_to_off_hvac_mode() -> None:
     state = build_climate_view_state(
         _device(

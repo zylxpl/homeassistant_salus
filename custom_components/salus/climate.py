@@ -15,12 +15,12 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE
 from homeassistant.core import HomeAssistant
 from salus_it600.device_models import (
-    MODEL_FC600,
     SQ610_HOLD_AUTO,
     SQ610_HOLD_PERMANENT,
     SQ610_HOLD_STANDBY,
     SQ610_MODE_COOL,
     SQ610_RUNNING_COOL,
+    is_fan_coil_model,
 )
 
 from ._climate_state import (
@@ -110,9 +110,9 @@ class SalusThermostat(SalusEntity, ClimateEntity):
 
     @property
     def _is_fc600(self) -> bool:
-        """Return whether the thermostat is an FC600 fan coil."""
+        """Return whether the thermostat is an FC600-family fan coil."""
         device = self._device
-        return getattr(device, "model", None) == MODEL_FC600
+        return is_fan_coil_model(getattr(device, "model", None))
 
     @property
     def _view(self) -> ClimateViewState:

@@ -706,6 +706,24 @@ class TestFC600Commands:
             ("set_climate_preset", device.unique_id, RAW_PRESET_ECO),
         ]
 
+    async def test_set_hvac_mode_fc600nh_from_off_restores_eco(self):
+        device = make_fc600_device()
+        device.model = "FC600NH"
+        device.hvac_mode = "cool"
+        device.preset_mode = RAW_PRESET_ECO
+        coord = _coordinator_with_climate(device)
+        entity = SalusThermostat(coord, device.unique_id)
+
+        await entity.async_set_hvac_mode(HVACMode.OFF)
+        device.preset_mode = RAW_PRESET_OFF
+        await entity.async_set_hvac_mode(HVACMode.HEAT)
+
+        assert coord.gateway.calls == [
+            ("set_climate_preset", device.unique_id, RAW_PRESET_OFF),
+            ("set_climate_mode", device.unique_id, HVACMode.HEAT),
+            ("set_climate_preset", device.unique_id, RAW_PRESET_ECO),
+        ]
+
     async def test_set_preset_fc600_while_off_turns_on(self):
         device = make_fc600_device()
         device.preset_mode = RAW_PRESET_OFF
