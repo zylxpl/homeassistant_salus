@@ -29,7 +29,7 @@ Last reviewed: 2026-05-02.
 | [#83 SD600 salus](https://github.com/epoplavskis/homeassistant_salus/issues/83) | open | Backlog | SD600 support request. |
 | [#82 UG800 after update can no longer be integrated](https://github.com/epoplavskis/homeassistant_salus/issues/82) | open | Backlog | New UG800 firmware/protocol issue. |
 | [#81 UG800 support?](https://github.com/epoplavskis/homeassistant_salus/issues/81) | open | Backlog | UG800 support request; needs current-firmware validation. |
-| [#80 Problem with Salus FC600NH](https://github.com/epoplavskis/homeassistant_salus/issues/80) | open | Backlog | FC600NH setpoint/control issue. |
+| [#80 Problem with Salus FC600NH](https://github.com/epoplavskis/homeassistant_salus/issues/80) | open | Solved locally | FC600NH setpoint/control issue. Told user to test our branch |
 | [#79 Failed to connect, please check IP address 2025.9.1](https://github.com/epoplavskis/homeassistant_salus/issues/79) | open | Backlog | Connection failure report. |
 | [#77 Can't fetch integration files](https://github.com/epoplavskis/homeassistant_salus/issues/77) | closed | Closed upstream | Historical installation issue. |
 | [#76 Failed to connect, please check EUID](https://github.com/epoplavskis/homeassistant_salus/issues/76) | open | Workaround documented | EUID/local-mode troubleshooting applies, but not all cases are resolved. |
