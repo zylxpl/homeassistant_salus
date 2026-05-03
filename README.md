@@ -8,8 +8,8 @@ A custom [Home Assistant](https://www.home-assistant.io/) integration that lets 
 
 One climate entity per thermostat connected to the gateway. Two thermostat families are supported:
 
-- **iT600 thermostats** (e.g. SQ610RF) — heat/off/auto modes, Follow Schedule / Permanent Hold / Off presets, current & target temperature, humidity, 0.5 °C increments.
-- **FC600 fan-coil controllers** — heat/cool/auto modes, five presets (Follow Schedule, Permanent Hold, Temporary Hold, Eco, Off), fan modes (auto/high/medium/low/off), separate heating/cooling setpoints.
+- **iT600 thermostats** (e.g. SQ610RF) — heat/off/auto modes, Follow Schedule / Permanent Hold / Standby presets, current & target temperature, humidity, 0.5 °C increments.
+- **FC600 fan-coil controllers** — heat/cool/auto/off modes, three presets (Follow Schedule, Permanent Hold, Eco), fan modes (auto/high/medium/low/off), separate heating/cooling setpoints.
 
 ### Sensors
 
@@ -99,7 +99,7 @@ The SQ610 Quantum thermostat has additional handling:
 
 - Heat and Cool mode exposure
 - Direct standby handling via `HoldType`
-- Simplified preset controls: `Permanent Hold`, `Standby`, and `Follow Schedule`
+- Simplified preset controls: `Permanent Hold` and `Follow Schedule` (standby is mapped to HVACMode OFF)
 - Humidity reading from the `SunnySetpoint_x100` register
 - Floor temperature from external probe (`OUTSensorProbe`)
 
