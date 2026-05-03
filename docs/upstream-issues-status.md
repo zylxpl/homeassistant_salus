@@ -66,7 +66,7 @@ Last reviewed: 2026-05-02.
 | [#44 Maintainer wanted](https://github.com/epoplavskis/homeassistant_salus/issues/44) | closed | Not actionable | Historical maintenance note. |
 | [#43 Cannot connect to UGE600](https://github.com/epoplavskis/homeassistant_salus/issues/43) | open | Workaround documented | Threads identify all-zero EUID, Local WiFi Mode, and network isolation cases; some reports remain unresolved. |
 | [#42 RX10RF not updating](https://github.com/epoplavskis/homeassistant_salus/issues/42) | open | Backlog | Device update issue. |
-| [#41 Support for ECM600](https://github.com/epoplavskis/homeassistant_salus/issues/41) | open | Backlog | Electric monitor support request. |
+| [#41 Support for ECM600](https://github.com/epoplavskis/homeassistant_salus/issues/41) | open | Backlog | Electric monitor support request. Told the user to test our fork. |
 | [#40 Selling my Salus devices on eBay](https://github.com/epoplavskis/homeassistant_salus/issues/40) | closed | Not actionable | Personal sale note. |
 | [#39 Temperature automations](https://github.com/epoplavskis/homeassistant_salus/issues/39) | open | Not actionable | Automation usage question rather than integration defect. |
 | [#38 Troubleshooting UUID 15 chars not 16](https://github.com/epoplavskis/homeassistant_salus/issues/38) | open | Workaround documented | Correct EUID location/documentation issue. |
