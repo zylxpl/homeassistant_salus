@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.20 - 2026-05-03
+
+Device support:
+
+- Require `salus-it600-client 0.4.7` for ECM600 energy meter support, exposing
+  per-endpoint power, energy, and diagnostic battery sensors.
+- Pick up the client-side FC600 variant handling so models such as `FC600NH`
+  use the same fan-coil parsing and write-command paths as `FC600`.
+
 ## 0.7.17 - 2026-05-02
 
 Bug fixes:
