@@ -13,6 +13,8 @@ from .entity import SalusEntity, async_add_salus_entities
 
 PARALLEL_UPDATES = 1
 
+MULTIFUNCTION_SWITCH_MODELS = {"RS600", "SR600"}
+
 
 async def async_setup_entry(
     hass: HomeAssistant,
@@ -40,6 +42,25 @@ class SalusSwitch(SalusEntity, SwitchEntity):
         """Return the current switch snapshot."""
         data: SalusData | None = self.coordinator.data
         return None if data is None else data.switch_devices.get(self._device_id)
+
+    def _device_info_unique_id(self, device: Any) -> str:
+        """Group RS600/SR600 relay endpoints under their physical device."""
+        device_data = getattr(device, "data", None)
+        if not isinstance(device_data, dict):
+            return super()._device_info_unique_id(device)
+
+        unique_id = device_data.get("UniID")
+        if not isinstance(unique_id, str):
+            return super()._device_info_unique_id(device)
+
+        if getattr(device, "model", None) in MULTIFUNCTION_SWITCH_MODELS:
+            return unique_id
+
+        data: SalusData | None = self.coordinator.data
+        if data is not None and unique_id in data.cover_devices:
+            return unique_id
+
+        return super()._device_info_unique_id(device)
 
     @property
     def device_class(self) -> str | None:

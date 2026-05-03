@@ -15,7 +15,6 @@ PARALLEL_UPDATES = 1
 
 COVER_DEVICE_CLASS_BY_MODEL = {
     "RS600": "shutter",
-    "SR600": "shutter",
 }
 
 

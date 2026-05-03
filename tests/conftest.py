@@ -183,10 +183,11 @@ def make_switch_device(
     unique_id: str = "switch-1",
     name: str = "Kitchen Plug",
     *,
-    model: str = "SPE600",
+    model: str | None = "SPE600",
     is_on: bool = False,
     device_class: str = "outlet",
     available: bool = True,
+    data: dict | None = None,
 ) -> SimpleNamespace:
     """Create a switch device SimpleNamespace."""
     return SimpleNamespace(
@@ -198,6 +199,7 @@ def make_switch_device(
         sw_version=None,
         device_class=device_class,
         is_on=is_on,
+        data=data or {"UniID": unique_id, "Endpoint": 1},
     )
 
 
@@ -287,4 +289,3 @@ def make_sensor_device(
         entity_category=entity_category,
         data=data or {"UniID": unique_id, "Endpoint": 1},
     )
-
