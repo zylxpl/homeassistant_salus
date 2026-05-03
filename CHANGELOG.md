@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.22 - 2026-05-03
+
+Bug fixes:
+
+- Require `salus-it600-client 0.4.9` so SQ610/SQ610NH thermostats expose
+  keypad lock entities and use the SQ610 lock write path.
+- Include SQ610 `LockKey` and `LockKey_a` values in diagnostics support fields.
+
 ## 0.7.21 - 2026-05-03
 
 Device support:

@@ -57,6 +57,8 @@ class FakeGateway:
                 "LocalTemperature_x100": 2150,
                 "HeatingSetpoint_x100": 2200,
                 "SystemMode": 4,
+                "LockKey": 1,
+                "LockKey_a": 1,
             }
         }
 
@@ -83,6 +85,12 @@ async def test_diagnostics_redacts_token_and_reports_health(hass: HomeAssistant)
     assert diagnostics["runtime"]["loaded"] is True
     assert diagnostics["device_counts"]["climate"] == 1
     assert diagnostics["gateway"]["health"]["successful_updates"] == 1
+    assert diagnostics["sq610"]["devices"]["sq610-1"]["support_fields"][
+        "LockKey"
+    ] == 1
+    assert diagnostics["sq610"]["devices"]["sq610-1"]["support_fields"][
+        "LockKey_a"
+    ] == 1
 
 
 async def test_diagnostics_handles_unloaded_entry(hass: HomeAssistant) -> None:

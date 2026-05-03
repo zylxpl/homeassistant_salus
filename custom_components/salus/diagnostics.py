@@ -28,6 +28,8 @@ SQ610_SUPPORT_FIELDS = (
     "SystemMode",
     "RunningState",
     "HoldType",
+    "LockKey",
+    "LockKey_a",
 )
 
 
