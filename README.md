@@ -6,10 +6,23 @@ A custom [Home Assistant](https://www.home-assistant.io/) integration that lets 
 
 ### Climate
 
-One climate entity per thermostat connected to the gateway. Two thermostat families are supported:
+One climate entity per thermostat connected to the gateway. The Home Assistant
+controls are adapted to the way each Salus device family models heating,
+cooling, schedules, and hold states:
 
-- **iT600 thermostats** (e.g. SQ610RF) — heat/off/auto modes, Follow Schedule / Permanent Hold / Standby presets, current & target temperature, humidity, 0.5 °C increments.
-- **FC600 fan-coil controllers** — heat/cool/auto/off modes, three presets (Follow Schedule, Permanent Hold, Eco), fan modes (auto/high/medium/low/off), separate heating/cooling setpoints.
+- **Standard heat-only iT600 thermostats and TRVs** — one HVAC mode menu with
+  `Off`, `Heat`, and `Auto`. `Heat` maps to manual/permanent hold, `Auto` maps
+  to Follow Schedule, and `Off` maps to the Salus off/standby state. These
+  devices do not expose a separate preset menu.
+- **SQ610 / SQ610RF Quantum thermostats** — separate HVAC and preset controls.
+  HVAC modes are `Off` and `Heat`, with `Cool` added only when the gateway shows
+  the thermostat supports cooling. Presets are `Permanent Hold` and
+  `Follow Schedule`; standby is represented by HVAC `Off`, not by a separate
+  preset.
+- **FC600 fan-coil controllers** — separate HVAC, preset, and fan controls.
+  HVAC modes are `Off`, `Heat`, and `Cool`. Presets are `Follow Schedule`,
+  `Permanent Hold`, and `Eco` when the device reports Eco support. Fan modes are
+  `auto`, `high`, `medium`, `low`, and `off`.
 
 ### Sensors
 
@@ -97,9 +110,10 @@ Known unsupported: SB600, CSB600 (button actions only work through the Salus Sma
 
 The SQ610 Quantum thermostat has additional handling:
 
-- Heat and Cool mode exposure
-- Direct standby handling via `HoldType`
-- Simplified preset controls: `Permanent Hold` and `Follow Schedule` (standby is mapped to HVACMode OFF)
+- Separate HVAC and preset controls instead of collapsing schedule into HVAC `Auto`
+- `Cool` mode exposure only when the gateway reports cooling support
+- Direct standby handling via `HoldType`, exposed as HVAC `Off`
+- Simplified preset controls: `Permanent Hold` and `Follow Schedule`
 - Humidity reading from the `SunnySetpoint_x100` register
 - Floor temperature from external probe (`OUTSensorProbe`)
 
