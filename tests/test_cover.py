@@ -75,12 +75,18 @@ class TestSalusCoverProperties:
         assert features & CoverEntityFeature.CLOSE
         assert features & CoverEntityFeature.SET_POSITION
 
-    def test_device_class_shutter_from_model(self):
-        """RS600/SR600 models get 'shutter' device class."""
+    def test_device_class_shutter_from_rs600_model(self):
+        """RS600 models get 'shutter' device class."""
         device = make_cover_device(model="RS600", device_class=None)
         coord = _coordinator_with_covers(device)
         entity = SalusCover(coord, device.unique_id)
         assert entity.device_class == "shutter"
+
+    def test_sr600_does_not_get_cover_device_class_fallback(self):
+        device = make_cover_device(model="SR600", device_class=None)
+        coord = _coordinator_with_covers(device)
+        entity = SalusCover(coord, device.unique_id)
+        assert entity.device_class is None
 
     def test_device_info(self):
         device = make_cover_device(unique_id="cover_001", model="RS600")

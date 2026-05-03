@@ -47,11 +47,11 @@ cooling, schedules, and hold states:
 
 ### Covers
 
-One cover entity per roller shutter or blind (SR600, RS600). Supports **open**, **close**, and **set position** (0–100 %).
+One cover entity per RS600 roller shutter or blind. Supports **open**, **close**, and **set position** (0-100 %).
 
 ### Switches
 
-One switch entity per smart plug or relay (SP600, SPE600). Supports **on/off** control. Double-switch devices are exposed as separate entities.
+One switch entity per smart plug or relay (SP600, SPE600, SR600, and RS600 relay endpoints). Supports **on/off** control. Double-switch devices are exposed as separate entities.
 
 ### Locks
 
@@ -100,11 +100,25 @@ After a Home Assistant command (e.g. changing a thermostat target temperature or
 | **Climate** | HTRP-RF(50), TS600, VS10WRF/VS10BRF, VS20WRF/VS20BRF, SQ610, SQ610RF, FC600, TRV3RF, it600MINITRV |
 | **Binary sensors** | SW600, WLS600, OS600, SD600, TRV10RFM, RX10RF, SmokeSensor-EM |
 | **Temperature sensors** | PS600 |
-| **Switches** | SP600, SPE600 |
-| **Covers** | RS600, SR600 |
+| **Switches** | SP600, SPE600, SR600, RS600 relay endpoints |
+| **Covers** | RS600 |
 | **Locks** | Any thermostat with child-lock support |
 
 Known unsupported: SB600, CSB600 (button actions only work through the Salus Smart Home app).
+
+### RS600 and SR600 notes
+
+RS600 is a multifunction device. A shutter installation may expose one `cover`
+entity, while relay endpoint payloads may also expose one or two `switch`
+entities. These entities are grouped under the same Home Assistant device when
+the gateway reports the same Salus `UniID`.
+
+Use the `cover` entity for shutters or blinds. Use the `switch` entities for
+independent relay channels. Disable the unused representation in Home Assistant
+to avoid confusing automations, and do not assume the cover and switch entities
+control independent hardware outputs.
+
+SR600 is treated as a dry relay switch, not as a cover device.
 
 ### SQ610 notes
 

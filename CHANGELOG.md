@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.21 - 2026-05-03
+
+Device support:
+
+- Require `salus-it600-client 0.4.8` for RS600/SR600 multifunction mapping.
+- Group RS600/SR600 switch endpoint entities under the base Home Assistant
+  device identifier so relay switches and the RS600 cover appear on one device.
+- Treat SR600 as a dry relay switch rather than a cover and document how users
+  should disable unused RS600 cover or switch representations.
+
 ## 0.7.20 - 2026-05-03
 
 Device support:
