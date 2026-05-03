@@ -45,12 +45,21 @@ class SalusSwitch(SalusEntity, SwitchEntity):
 
     def _device_info_unique_id(self, device: Any) -> str:
         """Group RS600/SR600 relay endpoints under their physical device."""
+        device_data = getattr(device, "data", None)
+        if not isinstance(device_data, dict):
+            return super()._device_info_unique_id(device)
+
+        unique_id = device_data.get("UniID")
+        if not isinstance(unique_id, str):
+            return super()._device_info_unique_id(device)
+
         if getattr(device, "model", None) in MULTIFUNCTION_SWITCH_MODELS:
-            device_data = getattr(device, "data", None)
-            if isinstance(device_data, dict):
-                unique_id = device_data.get("UniID")
-                if isinstance(unique_id, str):
-                    return unique_id
+            return unique_id
+
+        data: SalusData | None = self.coordinator.data
+        if data is not None and unique_id in data.cover_devices:
+            return unique_id
+
         return super()._device_info_unique_id(device)
 
     @property

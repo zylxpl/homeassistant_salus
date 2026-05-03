@@ -9,16 +9,16 @@ from salus_it600.exceptions import IT600ConnectionError
 from custom_components.salus.const import DOMAIN
 from custom_components.salus.coordinator import SalusData
 from custom_components.salus.switch import SalusSwitch
-from tests.conftest import FakeCoordinator, make_switch_device
+from tests.conftest import FakeCoordinator, make_cover_device, make_switch_device
 
 
-def _coordinator_with_switches(*devices):
+def _coordinator_with_switches(*devices, cover_devices=()):
     """Create a FakeCoordinator with switch devices."""
     data = SalusData(
         climate_devices={},
         binary_sensor_devices={},
         switch_devices={d.unique_id: d for d in devices},
-        cover_devices={},
+        cover_devices={d.unique_id: d for d in cover_devices},
         sensor_devices={},
         raw_climate_props={},
     )
@@ -68,6 +68,18 @@ class TestSalusSwitchProperties:
             data={"UniID": "rs600_001", "Endpoint": 1},
         )
         coord = _coordinator_with_switches(device)
+        entity = SalusSwitch(coord, "rs600_001_1")
+        info = entity.device_info
+        assert (DOMAIN, "rs600_001") in info["identifiers"]
+
+    def test_switch_endpoint_with_matching_cover_uses_base_uni_id(self):
+        cover = make_cover_device(unique_id="rs600_001", model="RS600")
+        device = make_switch_device(
+            unique_id="rs600_001_1",
+            model=None,
+            data={"UniID": "rs600_001", "Endpoint": 1},
+        )
+        coord = _coordinator_with_switches(device, cover_devices=(cover,))
         entity = SalusSwitch(coord, "rs600_001_1")
         info = entity.device_info
         assert (DOMAIN, "rs600_001") in info["identifiers"]

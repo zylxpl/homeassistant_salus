@@ -183,7 +183,7 @@ def make_switch_device(
     unique_id: str = "switch-1",
     name: str = "Kitchen Plug",
     *,
-    model: str = "SPE600",
+    model: str | None = "SPE600",
     is_on: bool = False,
     device_class: str = "outlet",
     available: bool = True,
