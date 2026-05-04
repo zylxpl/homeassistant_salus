@@ -101,6 +101,18 @@ class FakeCoordinator:
 # ---------------------------------------------------------------------------
 
 
+def _device_base(unique_id, name, *, model, available=True, **values):
+    return SimpleNamespace(
+        available=available,
+        unique_id=unique_id,
+        name=name,
+        manufacturer="SALUS",
+        model=model,
+        sw_version=None,
+        **values,
+    )
+
+
 def make_climate_device(
     unique_id: str = "climate-1",
     name: str = "Living Room",
@@ -142,13 +154,8 @@ def make_climate_device(
     diagnostic_fields: dict | None = None,
 ) -> SimpleNamespace:
     """Create a climate device SimpleNamespace."""
-    return SimpleNamespace(
-        available=available,
-        unique_id=unique_id,
-        name=name,
-        manufacturer="SALUS",
-        model=model,
-        sw_version=None,
+    return _device_base(
+        unique_id, name, model=model, available=available,
         temperature_unit=temperature_unit,
         precision=precision,
         current_temperature=current_temperature,
@@ -213,13 +220,8 @@ def make_switch_device(
     data: dict | None = None,
 ) -> SimpleNamespace:
     """Create a switch device SimpleNamespace."""
-    return SimpleNamespace(
-        available=available,
-        unique_id=unique_id,
-        name=name,
-        manufacturer="SALUS",
-        model=model,
-        sw_version=None,
+    return _device_base(
+        unique_id, name, model=model, available=available,
         device_class=device_class,
         is_on=is_on,
         data=data or {"UniID": unique_id, "Endpoint": 1},
@@ -240,13 +242,8 @@ def make_cover_device(
     available: bool = True,
 ) -> SimpleNamespace:
     """Create a cover device SimpleNamespace."""
-    return SimpleNamespace(
-        available=available,
-        unique_id=unique_id,
-        name=name,
-        manufacturer="SALUS",
-        model=model,
-        sw_version=None,
+    return _device_base(
+        unique_id, name, model=model, available=available,
         supported_features=supported_features,
         device_class=device_class,
         current_cover_position=current_cover_position,
@@ -269,13 +266,8 @@ def make_binary_sensor_device(
     available: bool = True,
 ) -> SimpleNamespace:
     """Create a binary sensor device SimpleNamespace."""
-    return SimpleNamespace(
-        available=available,
-        unique_id=unique_id,
-        name=name,
-        manufacturer="SALUS",
-        model=model,
-        sw_version=None,
+    return _device_base(
+        unique_id, name, model=model, available=available,
         is_on=is_on,
         device_class=device_class,
         parent_unique_id=parent_unique_id,
@@ -298,13 +290,8 @@ def make_sensor_device(
     data: dict | None = None,
 ) -> SimpleNamespace:
     """Create a sensor device SimpleNamespace."""
-    return SimpleNamespace(
-        available=available,
-        unique_id=unique_id,
-        name=name,
-        manufacturer="SALUS",
-        model=model,
-        sw_version=None,
+    return _device_base(
+        unique_id, name, model=model, available=available,
         state=state,
         unit_of_measurement=unit_of_measurement,
         device_class=device_class,

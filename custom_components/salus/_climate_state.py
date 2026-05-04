@@ -67,6 +67,33 @@ RAW_TO_HA_FAN_MODE = {
 HA_TO_RAW_FAN_MODE = {value: key for key, value in RAW_TO_HA_FAN_MODE.items()}
 
 COOLING_ACTIONS = {"cooling", "cooling (idling)"}
+RAW_HVAC_ACTION_TO_HA = {
+    "off": HVACAction.OFF,
+    "heating": HVACAction.HEATING,
+    "cooling": HVACAction.COOLING,
+    "idle": HVACAction.IDLE,
+    "heating (idling)": HVACAction.IDLE,
+    "cooling (idling)": HVACAction.IDLE,
+}
+SQ610_RUNNING_ACTION_TO_HA = {
+    SQ610_RUNNING_HEAT: HVACAction.HEATING,
+    SQ610_RUNNING_COOL: HVACAction.COOLING,
+}
+SQ610_SYSTEM_IDLE_MODES = {
+    SQ610_MODE_COOL,
+    SQ610_MODE_HEAT,
+    SQ610_MODE_EMERGENCY_HEAT,
+}
+SQ610_HOLD_TO_HA_PRESET = {
+    SQ610_HOLD_PERMANENT: PRESET_PERMANENT_HOLD,
+    SQ610_HOLD_AUTO: PRESET_FOLLOW_SCHEDULE,
+}
+FC600_RAW_PRESET_TO_HA = {
+    RAW_PRESET_ECO: PRESET_ECO,
+    RAW_PRESET_PERMANENT_HOLD: PRESET_PERMANENT_HOLD,
+    RAW_PRESET_TEMPORARY_HOLD: PRESET_PERMANENT_HOLD,
+    RAW_PRESET_FOLLOW_SCHEDULE: PRESET_FOLLOW_SCHEDULE,
+}
 MANUAL_PRESET_MODES = {
     RAW_PRESET_PERMANENT_HOLD,
     RAW_PRESET_TEMPORARY_HOLD,
@@ -229,14 +256,8 @@ def _normalize_hvac_action(action: Any) -> HVACAction | None:
     """Map library-specific strings to Home Assistant HVACAction values."""
     if isinstance(action, HVACAction):
         return action
-    if action == "off":
-        return HVACAction.OFF
-    if action == "heating":
-        return HVACAction.HEATING
-    if action == "cooling":
-        return HVACAction.COOLING
-    if action in {"idle", "heating (idling)", "cooling (idling)"}:
-        return HVACAction.IDLE
+    if action in RAW_HVAC_ACTION_TO_HA:
+        return RAW_HVAC_ACTION_TO_HA[action]
     if action is not None:
         _LOGGER.warning("Unknown Salus HVAC action: %s", action)
     return None
@@ -349,23 +370,18 @@ def _effective_preset_mode(
         hold_type = getattr(device, "hold_type", None)
         if hold_type == SQ610_HOLD_STANDBY:
             return None
-        if hold_type == SQ610_HOLD_PERMANENT:
-            return PRESET_PERMANENT_HOLD
-        if hold_type == SQ610_HOLD_AUTO:
-            return PRESET_FOLLOW_SCHEDULE
+        if hold_type in SQ610_HOLD_TO_HA_PRESET:
+            return SQ610_HOLD_TO_HA_PRESET[hold_type]
         if hold_type is not None:
             return _valid_sq610_resume_preset_mode(sq610_resume_preset_mode)
 
     if capabilities.is_fc600:
         if device.preset_mode == RAW_PRESET_OFF:
             return None
-        if device.preset_mode == RAW_PRESET_ECO:
-            return PRESET_ECO
-        if device.preset_mode in {RAW_PRESET_PERMANENT_HOLD, RAW_PRESET_TEMPORARY_HOLD}:
-            return PRESET_PERMANENT_HOLD
-        if device.preset_mode == RAW_PRESET_FOLLOW_SCHEDULE:
-            return PRESET_FOLLOW_SCHEDULE
-        return _valid_fc600_resume_preset_mode(fc600_resume_preset_mode)
+        return FC600_RAW_PRESET_TO_HA.get(
+            device.preset_mode,
+            _valid_fc600_resume_preset_mode(fc600_resume_preset_mode),
+        )
 
     return None
 
@@ -430,15 +446,9 @@ def _hvac_action(
         system_mode = getattr(device, "system_mode", None)
         if hold_type == SQ610_HOLD_STANDBY:
             return HVACAction.OFF
-        if running_state == SQ610_RUNNING_HEAT:
-            return HVACAction.HEATING
-        if running_state == SQ610_RUNNING_COOL:
-            return HVACAction.COOLING
-        if system_mode in {
-            SQ610_MODE_COOL,
-            SQ610_MODE_HEAT,
-            SQ610_MODE_EMERGENCY_HEAT,
-        }:
+        if running_state in SQ610_RUNNING_ACTION_TO_HA:
+            return SQ610_RUNNING_ACTION_TO_HA[running_state]
+        if system_mode in SQ610_SYSTEM_IDLE_MODES:
             return HVACAction.IDLE
         return None
 

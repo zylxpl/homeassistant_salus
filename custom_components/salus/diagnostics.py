@@ -37,6 +37,38 @@ CLIMATE_SUPPORT_FIELDS = (
     "LockKey",
     "LockKey_a",
 )
+CLIMATE_NORMALIZED_FIELDS = (
+    "current_temperature",
+    "current_humidity",
+    "target_temperature",
+    "min_temp",
+    "max_temp",
+    "hvac_mode",
+    "hvac_action",
+    "preset_mode",
+    "fan_mode",
+    "online_status",
+    "hold_type",
+    "system_mode",
+    "running_state",
+    "heating_setpoint",
+    "cooling_setpoint",
+    "min_heat_temp",
+    "max_heat_temp",
+    "min_cool_temp",
+    "max_cool_temp",
+    "heating_control",
+    "cooling_control",
+    "supports_cooling",
+    "supports_fan",
+    "supports_heat",
+    "cooling_capability_source",
+)
+CLIMATE_NORMALIZED_SEQUENCE_FIELDS = (
+    "hvac_modes",
+    "preset_modes",
+)
+CLIMATE_NORMALIZED_OPTIONAL_SEQUENCE_FIELDS = ("fan_modes",)
 
 
 async def async_get_config_entry_diagnostics(
@@ -120,44 +152,7 @@ def _climate_diagnostics(data: SalusData | None) -> dict[str, Any]:
             "available": getattr(device, "available", None),
             "field_count": len(diagnostic_fields),
             "present_fields": sorted(diagnostic_fields),
-            "normalized_fields": {
-                "current_temperature": getattr(device, "current_temperature", None),
-                "current_humidity": getattr(device, "current_humidity", None),
-                "target_temperature": getattr(device, "target_temperature", None),
-                "min_temp": getattr(device, "min_temp", None),
-                "max_temp": getattr(device, "max_temp", None),
-                "hvac_mode": getattr(device, "hvac_mode", None),
-                "hvac_action": getattr(device, "hvac_action", None),
-                "hvac_modes": list(getattr(device, "hvac_modes", None) or []),
-                "preset_mode": getattr(device, "preset_mode", None),
-                "preset_modes": list(getattr(device, "preset_modes", None) or []),
-                "fan_mode": getattr(device, "fan_mode", None),
-                "fan_modes": (
-                    None
-                    if getattr(device, "fan_modes", None) is None
-                    else list(getattr(device, "fan_modes", None) or [])
-                ),
-                "online_status": getattr(device, "online_status", None),
-                "hold_type": getattr(device, "hold_type", None),
-                "system_mode": getattr(device, "system_mode", None),
-                "running_state": getattr(device, "running_state", None),
-                "heating_setpoint": getattr(device, "heating_setpoint", None),
-                "cooling_setpoint": getattr(device, "cooling_setpoint", None),
-                "min_heat_temp": getattr(device, "min_heat_temp", None),
-                "max_heat_temp": getattr(device, "max_heat_temp", None),
-                "min_cool_temp": getattr(device, "min_cool_temp", None),
-                "max_cool_temp": getattr(device, "max_cool_temp", None),
-                "heating_control": getattr(device, "heating_control", None),
-                "cooling_control": getattr(device, "cooling_control", None),
-                "supports_cooling": getattr(device, "supports_cooling", None),
-                "supports_fan": getattr(device, "supports_fan", None),
-                "supports_heat": getattr(device, "supports_heat", None),
-                "cooling_capability_source": getattr(
-                    device,
-                    "cooling_capability_source",
-                    None,
-                ),
-            },
+            "normalized_fields": _normalized_climate_fields(device),
             "support_fields": {
                 field: diagnostic_fields.get(field)
                 for field in CLIMATE_SUPPORT_FIELDS
@@ -166,3 +161,23 @@ def _climate_diagnostics(data: SalusData | None) -> dict[str, Any]:
         }
 
     return {"devices": devices}
+
+
+def _normalized_climate_fields(device: Any) -> dict[str, Any]:
+    """Return normalized climate fields for diagnostics."""
+    fields = {field: getattr(device, field, None) for field in CLIMATE_NORMALIZED_FIELDS}
+    fields.update(
+        {
+            field: list(getattr(device, field, None) or [])
+            for field in CLIMATE_NORMALIZED_SEQUENCE_FIELDS
+        }
+    )
+    fields.update(
+        {
+            field: None
+            if getattr(device, field, None) is None
+            else list(getattr(device, field, None) or [])
+            for field in CLIMATE_NORMALIZED_OPTIONAL_SEQUENCE_FIELDS
+        }
+    )
+    return fields

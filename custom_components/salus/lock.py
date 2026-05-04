@@ -9,8 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 
-from .coordinator import SalusData, SalusRuntimeData
-from .entity import SalusEntity, async_add_salus_entities
+from .entity import SalusEntity, async_setup_salus_platform_entities
 
 PARALLEL_UPDATES = 1
 
@@ -21,14 +20,10 @@ async def async_setup_entry(
     async_add_entities,
 ) -> None:
     """Set up Salus thermostat lock entities from a config entry."""
-    runtime_data: SalusRuntimeData = config_entry.runtime_data
-    coordinator = runtime_data.coordinator
-
-    async_add_salus_entities(
+    async_setup_salus_platform_entities(
         config_entry,
-        coordinator,
         async_add_entities,
-        lambda device_id: SalusThermostatLock(coordinator, device_id),
+        SalusThermostatLock,
         lambda data: {
             device_id: device
             for device_id, device in data.climate_devices.items()
@@ -41,17 +36,12 @@ class SalusThermostatLock(SalusEntity, LockEntity):
     """Representation of a Salus thermostat child lock."""
 
     _attr_entity_category = EntityCategory.CONFIG
+    _data_collection = "climate_devices"
 
     def __init__(self, coordinator, device_id: str) -> None:
         """Initialize the lock entity."""
         super().__init__(coordinator, device_id)
         self._attr_unique_id = f"{device_id}_lock"
-
-    @property
-    def _device(self) -> Any | None:
-        """Return the current lockable thermostat snapshot."""
-        data: SalusData | None = self.coordinator.data
-        return None if data is None else data.climate_devices.get(self._device_id)
 
     @property
     def is_locked(self) -> bool | None:
@@ -62,22 +52,20 @@ class SalusThermostatLock(SalusEntity, LockEntity):
 
     async def async_lock(self, **kwargs: Any) -> None:
         """Lock the thermostat keypad."""
-        await self._async_run_gateway_command(
+        await self._async_run_gateway_command_and_refresh(
             "lock thermostat keypad",
             lambda: self.coordinator.gateway.set_climate_device_locked(
                 self._device_id,
                 True,
             ),
         )
-        await self.coordinator.async_request_debounced_refresh()
 
     async def async_unlock(self, **kwargs: Any) -> None:
         """Unlock the thermostat keypad."""
-        await self._async_run_gateway_command(
+        await self._async_run_gateway_command_and_refresh(
             "unlock thermostat keypad",
             lambda: self.coordinator.gateway.set_climate_device_locked(
                 self._device_id,
                 False,
             ),
         )
-        await self.coordinator.async_request_debounced_refresh()

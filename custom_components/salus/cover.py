@@ -8,8 +8,7 @@ from homeassistant.components.cover import ATTR_POSITION, CoverEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .coordinator import SalusData, SalusRuntimeData
-from .entity import SalusEntity, async_add_salus_entities
+from .entity import SalusEntity, async_setup_salus_platform_entities
 
 PARALLEL_UPDATES = 1
 
@@ -24,14 +23,10 @@ async def async_setup_entry(
     async_add_entities,
 ) -> None:
     """Set up Salus cover devices from a config entry."""
-    runtime_data: SalusRuntimeData = config_entry.runtime_data
-    coordinator = runtime_data.coordinator
-
-    async_add_salus_entities(
+    async_setup_salus_platform_entities(
         config_entry,
-        coordinator,
         async_add_entities,
-        lambda device_id: SalusCover(coordinator, device_id),
+        SalusCover,
         lambda data: data.cover_devices,
     )
 
@@ -39,16 +34,12 @@ async def async_setup_entry(
 class SalusCover(SalusEntity, CoverEntity):
     """Representation of a Salus cover."""
 
-    @property
-    def _device(self) -> Any | None:
-        """Return the current cover snapshot."""
-        data: SalusData | None = self.coordinator.data
-        return None if data is None else data.cover_devices.get(self._device_id)
+    _data_collection = "cover_devices"
 
     @property
     def supported_features(self) -> int:
         """Return the list of supported features."""
-        return 0 if self._device is None else self._device.supported_features
+        return self._device_attr("supported_features", 0)
 
     @property
     def device_class(self) -> str | None:
@@ -62,38 +53,36 @@ class SalusCover(SalusEntity, CoverEntity):
     @property
     def current_cover_position(self) -> int | None:
         """Return the current position of the cover."""
-        return None if self._device is None else self._device.current_cover_position
+        return self._device_attr("current_cover_position")
 
     @property
     def is_opening(self) -> bool | None:
         """Return if the cover is opening."""
-        return None if self._device is None else self._device.is_opening
+        return self._device_attr("is_opening")
 
     @property
     def is_closing(self) -> bool | None:
         """Return if the cover is closing."""
-        return None if self._device is None else self._device.is_closing
+        return self._device_attr("is_closing")
 
     @property
     def is_closed(self) -> bool | None:
         """Return if the cover is closed."""
-        return None if self._device is None else self._device.is_closed
+        return self._device_attr("is_closed")
 
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
-        await self._async_run_gateway_command(
+        await self._async_run_gateway_command_and_refresh(
             "open cover",
             lambda: self.coordinator.gateway.open_cover(self._device_id),
         )
-        await self.coordinator.async_request_debounced_refresh()
 
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close the cover."""
-        await self._async_run_gateway_command(
+        await self._async_run_gateway_command_and_refresh(
             "close cover",
             lambda: self.coordinator.gateway.close_cover(self._device_id),
         )
-        await self.coordinator.async_request_debounced_refresh()
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         """Move the cover to a specific position."""
@@ -101,11 +90,10 @@ class SalusCover(SalusEntity, CoverEntity):
         if position is None:
             return
 
-        await self._async_run_gateway_command(
+        await self._async_run_gateway_command_and_refresh(
             "set cover position",
             lambda: self.coordinator.gateway.set_cover_position(
                 self._device_id,
                 position,
             ),
         )
-        await self.coordinator.async_request_debounced_refresh()

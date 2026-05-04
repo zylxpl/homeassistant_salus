@@ -37,8 +37,8 @@ from ._climate_state import (
     build_climate_capabilities,
     build_climate_view_state,
 )
-from .coordinator import SalusData, SalusRuntimeData, is_sq610_device
-from .entity import SalusEntity, async_add_salus_entities
+from .coordinator import is_sq610_device
+from .entity import SalusEntity, async_setup_salus_platform_entities
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,6 +53,27 @@ FC600_RESUME_PRESET_TO_RAW = {
     PRESET_PERMANENT_HOLD: RAW_PRESET_PERMANENT_HOLD,
     PRESET_ECO: RAW_PRESET_ECO,
 }
+SQ610_HOLD_TO_PRESET = {
+    SQ610_HOLD_AUTO: PRESET_FOLLOW_SCHEDULE,
+    SQ610_HOLD_PERMANENT: PRESET_PERMANENT_HOLD,
+    SQ610_HOLD_STANDBY: None,
+}
+SQ610_RAW_PRESET_TO_PRESET = {
+    RAW_PRESET_FOLLOW_SCHEDULE: PRESET_FOLLOW_SCHEDULE,
+    RAW_PRESET_PERMANENT_HOLD: PRESET_PERMANENT_HOLD,
+}
+FC600_RAW_PRESET_TO_PRESET = {
+    RAW_PRESET_FOLLOW_SCHEDULE: PRESET_FOLLOW_SCHEDULE,
+    RAW_PRESET_ECO: PRESET_ECO,
+    RAW_PRESET_PERMANENT_HOLD: PRESET_PERMANENT_HOLD,
+    RAW_PRESET_TEMPORARY_HOLD: PRESET_PERMANENT_HOLD,
+}
+EXPOSED_PRESET_TO_RAW = {
+    PRESET_STANDBY: RAW_PRESET_OFF,
+    PRESET_PERMANENT_HOLD: RAW_PRESET_PERMANENT_HOLD,
+    PRESET_FOLLOW_SCHEDULE: RAW_PRESET_FOLLOW_SCHEDULE,
+    PRESET_ECO: RAW_PRESET_ECO,
+}
 
 
 async def async_setup_entry(
@@ -61,14 +82,10 @@ async def async_setup_entry(
     async_add_entities,
 ) -> None:
     """Set up Salus thermostats from a config entry."""
-    runtime_data: SalusRuntimeData = config_entry.runtime_data
-    coordinator = runtime_data.coordinator
-
-    async_add_salus_entities(
+    async_setup_salus_platform_entities(
         config_entry,
-        coordinator,
         async_add_entities,
-        lambda device_id: SalusThermostat(coordinator, device_id),
+        SalusThermostat,
         lambda data: data.climate_devices,
     )
 
@@ -78,6 +95,7 @@ class SalusThermostat(SalusEntity, ClimateEntity):
 
     _enable_turn_on_off_backwards_compatibility = False
     _attr_translation_key = "thermostat"
+    _data_collection = "climate_devices"
 
     def __init__(self, coordinator: Any, device_id: str) -> None:
         """Initialize a Salus thermostat entity."""
@@ -86,12 +104,6 @@ class SalusThermostat(SalusEntity, ClimateEntity):
         self._sq610_supports_cooling = False
         self._sq610_logged_unknown_hold_types: set[str] = set()
         self._fc600_resume_preset_mode: str | None = None
-
-    @property
-    def _device(self) -> Any | None:
-        """Return the latest thermostat snapshot from the coordinator."""
-        data: SalusData | None = self.coordinator.data
-        return None if data is None else data.climate_devices.get(self._device_id)
 
     @property
     def _is_sq610(self) -> bool:
@@ -151,12 +163,12 @@ class SalusThermostat(SalusEntity, ClimateEntity):
     @property
     def temperature_unit(self) -> str | None:
         """Return the unit of measurement."""
-        return None if self._device is None else self._device.temperature_unit
+        return self._device_attr("temperature_unit")
 
     @property
     def precision(self) -> float | None:
         """Return the precision of the system."""
-        return None if self._device is None else self._device.precision
+        return self._device_attr("precision")
 
     @property
     def current_temperature(self) -> float | None:
@@ -191,12 +203,12 @@ class SalusThermostat(SalusEntity, ClimateEntity):
     @property
     def max_temp(self) -> float | None:
         """Return the maximum target temperature."""
-        return None if self._device is None else self._device.max_temp
+        return self._device_attr("max_temp")
 
     @property
     def min_temp(self) -> float | None:
         """Return the minimum target temperature."""
-        return None if self._device is None else self._device.min_temp
+        return self._device_attr("min_temp")
 
     @property
     def preset_mode(self) -> str | None:
@@ -221,7 +233,7 @@ class SalusThermostat(SalusEntity, ClimateEntity):
     @property
     def locked(self) -> bool | None:
         """Return if the thermostat is locked."""
-        return None if self._device is None else self._device.locked
+        return self._device_attr("locked")
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -264,12 +276,8 @@ class SalusThermostat(SalusEntity, ClimateEntity):
             return None
 
         hold_type = getattr(device, "hold_type", None)
-        if hold_type == SQ610_HOLD_AUTO:
-            return PRESET_FOLLOW_SCHEDULE
-        if hold_type == SQ610_HOLD_PERMANENT:
-            return PRESET_PERMANENT_HOLD
-        if hold_type == SQ610_HOLD_STANDBY:
-            return None
+        if hold_type in SQ610_HOLD_TO_PRESET:
+            return SQ610_HOLD_TO_PRESET[hold_type]
         if hold_type is not None:
             hold_type_key = repr(hold_type)
             if hold_type_key not in self._sq610_logged_unknown_hold_types:
@@ -281,12 +289,7 @@ class SalusThermostat(SalusEntity, ClimateEntity):
                 )
             return None
 
-        preset_mode = getattr(device, "preset_mode", None)
-        if preset_mode == RAW_PRESET_FOLLOW_SCHEDULE:
-            return PRESET_FOLLOW_SCHEDULE
-        if preset_mode == RAW_PRESET_PERMANENT_HOLD:
-            return PRESET_PERMANENT_HOLD
-        return None
+        return SQ610_RAW_PRESET_TO_PRESET.get(getattr(device, "preset_mode", None))
 
     def _remember_current_sq610_preset(self) -> None:
         """Remember the last active hold/schedule preset for standby resume."""
@@ -296,23 +299,26 @@ class SalusThermostat(SalusEntity, ClimateEntity):
 
     def _current_fc600_preset_mode(self) -> str | None:
         """Return the active non-off FC600 preset from parsed state."""
-        device = self._device
-        if device is None:
-            return None
-
-        preset_mode = getattr(device, "preset_mode", None)
-        if preset_mode == RAW_PRESET_FOLLOW_SCHEDULE:
-            return PRESET_FOLLOW_SCHEDULE
-        if preset_mode == RAW_PRESET_ECO:
-            return PRESET_ECO
-        if preset_mode in {RAW_PRESET_PERMANENT_HOLD, RAW_PRESET_TEMPORARY_HOLD}:
-            return PRESET_PERMANENT_HOLD
-        return None
+        return FC600_RAW_PRESET_TO_PRESET.get(self._device_attr("preset_mode"))
 
     def _remember_current_fc600_preset(self) -> None:
         """Remember the last active FC600 preset for off-state resume."""
         preset_mode = self._current_fc600_preset_mode()
         if preset_mode is not None:
+            self._fc600_resume_preset_mode = preset_mode
+
+    def _remember_current_family_preset(self) -> None:
+        """Remember the active preset for device families with off/standby resume."""
+        if self._is_sq610:
+            self._remember_current_sq610_preset()
+        elif self._is_fc600:
+            self._remember_current_fc600_preset()
+
+    def _remember_requested_resume_preset(self, preset_mode: str) -> None:
+        """Remember an explicitly selected preset for later off/standby resume."""
+        if self._is_sq610 and preset_mode in SQ610_RESUME_PRESET_TO_RAW:
+            self._sq610_resume_preset_mode = preset_mode
+        elif self._is_fc600 and preset_mode in FC600_RESUME_PRESET_TO_RAW:
             self._fc600_resume_preset_mode = preset_mode
 
     def _sq610_snapshot_supports_cooling(self) -> bool:
@@ -347,38 +353,56 @@ class SalusThermostat(SalusEntity, ClimateEntity):
             RAW_PRESET_PERMANENT_HOLD,
         )
 
-    async def _async_set_sq610_raw_preset(self, raw_preset_mode: str) -> None:
-        """Set an SQ610 raw preset and refresh state."""
-        await self._async_run_gateway_command(
-            "set SQ610 preset",
-            lambda: self.coordinator.gateway.set_climate_device_preset(
-                self._device_id,
-                raw_preset_mode,
-            ),
-        )
-        await self._async_request_debounced_refresh_after_sq610_write()
+    async def _async_request_climate_command_refresh(self, is_sq610: bool) -> None:
+        """Request the correct post-command refresh for this climate family."""
+        if is_sq610:
+            await self._async_request_debounced_refresh_after_sq610_write()
+        else:
+            await self.coordinator.async_request_debounced_refresh()
 
-    async def _async_set_fc600_raw_preset(self, raw_preset_mode: str) -> None:
-        """Set an FC600 raw preset and refresh state."""
+    async def _async_set_raw_preset(self, raw_preset_mode: str) -> None:
+        """Set a Salus hold/preset value and refresh state."""
+        is_sq610 = self._is_sq610
+        action = (
+            "set SQ610 preset"
+            if is_sq610
+            else "set FC600 preset"
+            if self._is_fc600
+            else "set preset"
+        )
         await self._async_run_gateway_command(
-            "set FC600 preset",
+            action,
             lambda: self.coordinator.gateway.set_climate_device_preset(
                 self._device_id,
                 raw_preset_mode,
             ),
         )
-        await self.coordinator.async_request_debounced_refresh()
+        await self._async_request_climate_command_refresh(is_sq610)
 
-    async def _async_set_generic_raw_preset(self, raw_preset_mode: str) -> None:
-        """Set a standard Salus hold/preset value and refresh state."""
-        await self._async_run_gateway_command(
-            "set preset",
-            lambda: self.coordinator.gateway.set_climate_device_preset(
+    async def _async_set_hvac_mode_and_restore_preset(
+        self,
+        action: str,
+        hvac_mode: HVACMode,
+        *,
+        restore_preset: bool,
+        raw_resume_preset: str,
+        is_sq610: bool,
+    ) -> None:
+        """Set HVAC mode and restore a remembered preset when leaving off state."""
+
+        async def set_mode() -> None:
+            await self.coordinator.gateway.set_climate_device_mode(
                 self._device_id,
-                raw_preset_mode,
-            ),
-        )
-        await self.coordinator.async_request_debounced_refresh()
+                hvac_mode,
+            )
+            if restore_preset:
+                await self.coordinator.gateway.set_climate_device_preset(
+                    self._device_id,
+                    raw_resume_preset,
+                )
+
+        await self._async_run_gateway_command(action, set_mode)
+        await self._async_request_climate_command_refresh(is_sq610)
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
@@ -403,23 +427,24 @@ class SalusThermostat(SalusEntity, ClimateEntity):
             await self._async_request_debounced_refresh_after_sq610_write()
             return
 
-        if self._is_fc600 and self._device is not None:
-            if self._device.preset_mode in {RAW_PRESET_OFF, RAW_PRESET_ECO}:
-                _LOGGER.debug(
-                    "Ignoring FC600 target temperature change while %s is in %s",
-                    self._device_id,
-                    self._device.preset_mode,
-                )
-                return
+        if self._is_fc600 and self._device_attr("preset_mode") in {
+            RAW_PRESET_OFF,
+            RAW_PRESET_ECO,
+        }:
+            _LOGGER.debug(
+                "Ignoring FC600 target temperature change while %s is in %s",
+                self._device_id,
+                self._device_attr("preset_mode"),
+            )
+            return
 
-        await self._async_run_gateway_command(
+        await self._async_run_gateway_command_and_refresh(
             "set target temperature",
             lambda: self.coordinator.gateway.set_climate_device_temperature(
                 self._device_id,
                 temperature,
             ),
         )
-        await self.coordinator.async_request_debounced_refresh()
 
     async def async_set_fan_mode(self, fan_mode: str) -> None:
         """Set fan speed."""
@@ -435,14 +460,13 @@ class SalusThermostat(SalusEntity, ClimateEntity):
             )
             return
 
-        await self._async_run_gateway_command(
+        await self._async_run_gateway_command_and_refresh(
             "set fan mode",
             lambda: self.coordinator.gateway.set_climate_device_fan_mode(
                 self._device_id,
                 mode,
             ),
         )
-        await self.coordinator.async_request_debounced_refresh()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set operation mode."""
@@ -454,72 +478,36 @@ class SalusThermostat(SalusEntity, ClimateEntity):
             )
             return
         if hvac_mode == HVACMode.OFF:
-            if self._is_sq610:
-                self._remember_current_sq610_preset()
-                await self._async_set_sq610_raw_preset(RAW_PRESET_OFF)
-                return
-            if self._is_fc600:
-                self._remember_current_fc600_preset()
-                await self._async_set_fc600_raw_preset(RAW_PRESET_OFF)
-                return
-            await self._async_set_generic_raw_preset(RAW_PRESET_OFF)
+            self._remember_current_family_preset()
+            await self._async_set_raw_preset(RAW_PRESET_OFF)
             return
         if hvac_mode == HVACMode.AUTO:
-            await self._async_set_generic_raw_preset(RAW_PRESET_FOLLOW_SCHEDULE)
+            await self._async_set_raw_preset(RAW_PRESET_FOLLOW_SCHEDULE)
             return
 
         if self._is_sq610:
-            restore_preset = (
-                getattr(self._device, "hold_type", None) == SQ610_HOLD_STANDBY
-            )
-            raw_resume_preset = self._sq610_resume_raw_preset_mode
-
-            async def set_sq610_mode() -> None:
-                await self.coordinator.gateway.set_climate_device_mode(
-                    self._device_id,
-                    hvac_mode,
-                )
-                if restore_preset:
-                    await self.coordinator.gateway.set_climate_device_preset(
-                        self._device_id,
-                        raw_resume_preset,
-                    )
-
-            await self._async_run_gateway_command(
+            await self._async_set_hvac_mode_and_restore_preset(
                 "set SQ610 HVAC mode",
-                set_sq610_mode,
+                hvac_mode,
+                restore_preset=self._device_attr("hold_type") == SQ610_HOLD_STANDBY,
+                raw_resume_preset=self._sq610_resume_raw_preset_mode,
+                is_sq610=True,
             )
-            await self._async_request_debounced_refresh_after_sq610_write()
             return
 
         if self._is_fc600:
-            device = self._device
-            restore_preset = (
-                device is not None and device.preset_mode == RAW_PRESET_OFF
-            )
-            raw_resume_preset = self._fc600_resume_raw_preset_mode
-
-            async def set_fc600_mode() -> None:
-                await self.coordinator.gateway.set_climate_device_mode(
-                    self._device_id,
-                    hvac_mode,
-                )
-                if restore_preset:
-                    await self.coordinator.gateway.set_climate_device_preset(
-                        self._device_id,
-                        raw_resume_preset,
-                    )
-
-            await self._async_run_gateway_command(
+            await self._async_set_hvac_mode_and_restore_preset(
                 "set FC600 HVAC mode",
-                set_fc600_mode,
+                hvac_mode,
+                restore_preset=self._device_attr("preset_mode") == RAW_PRESET_OFF,
+                raw_resume_preset=self._fc600_resume_raw_preset_mode,
+                is_sq610=False,
             )
-            await self.coordinator.async_request_debounced_refresh()
             return
 
         if not self._capabilities.uses_independent_preset_control:
             if hvac_mode == HVACMode.HEAT:
-                await self._async_set_generic_raw_preset(RAW_PRESET_PERMANENT_HOLD)
+                await self._async_set_raw_preset(RAW_PRESET_PERMANENT_HOLD)
                 return
             if hvac_mode == HVACMode.COOL and not self._supports_cooling:
                 return
@@ -527,59 +515,18 @@ class SalusThermostat(SalusEntity, ClimateEntity):
         if not self._supports_cooling:
             return
 
-        await self._async_run_gateway_command(
+        await self._async_run_gateway_command_and_refresh(
             "set HVAC mode",
             lambda: self.coordinator.gateway.set_climate_device_mode(
                 self._device_id,
                 hvac_mode,
             ),
         )
-        await self.coordinator.async_request_debounced_refresh()
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         """Set the exposed Salus hold mode."""
-        if preset_mode == PRESET_STANDBY:
-            if self._is_sq610:
-                self._remember_current_sq610_preset()
-                await self._async_set_sq610_raw_preset(RAW_PRESET_OFF)
-                return
-            if self._is_fc600:
-                self._remember_current_fc600_preset()
-                await self._async_set_fc600_raw_preset(RAW_PRESET_OFF)
-                return
-            raw_preset_mode = RAW_PRESET_OFF
-        elif preset_mode == PRESET_PERMANENT_HOLD:
-            if self._is_sq610:
-                self._sq610_resume_preset_mode = PRESET_PERMANENT_HOLD
-                await self._async_set_sq610_raw_preset(RAW_PRESET_PERMANENT_HOLD)
-                return
-            if self._is_fc600:
-                self._fc600_resume_preset_mode = PRESET_PERMANENT_HOLD
-                await self._async_set_fc600_raw_preset(RAW_PRESET_PERMANENT_HOLD)
-                return
-            raw_preset_mode = RAW_PRESET_PERMANENT_HOLD
-        elif preset_mode == PRESET_FOLLOW_SCHEDULE:
-            if self._is_sq610:
-                self._sq610_resume_preset_mode = PRESET_FOLLOW_SCHEDULE
-                await self._async_set_sq610_raw_preset(RAW_PRESET_FOLLOW_SCHEDULE)
-                return
-            if self._is_fc600:
-                self._fc600_resume_preset_mode = PRESET_FOLLOW_SCHEDULE
-                await self._async_set_fc600_raw_preset(RAW_PRESET_FOLLOW_SCHEDULE)
-                return
-            raw_preset_mode = RAW_PRESET_FOLLOW_SCHEDULE
-        elif preset_mode == PRESET_ECO:
-            if self._is_fc600:
-                self._fc600_resume_preset_mode = PRESET_ECO
-                await self._async_set_fc600_raw_preset(RAW_PRESET_ECO)
-                return
-            _LOGGER.warning(
-                "Ignoring unsupported preset mode request for %s: %s",
-                self._device_id,
-                preset_mode,
-            )
-            return
-        else:
+        raw_preset_mode = EXPOSED_PRESET_TO_RAW.get(preset_mode)
+        if raw_preset_mode is None or (preset_mode == PRESET_ECO and not self._is_fc600):
             _LOGGER.warning(
                 "Ignoring unsupported preset mode request for %s: %s",
                 self._device_id,
@@ -587,24 +534,21 @@ class SalusThermostat(SalusEntity, ClimateEntity):
             )
             return
 
-        await self._async_run_gateway_command(
-            "set preset",
-            lambda: self.coordinator.gateway.set_climate_device_preset(
-                self._device_id,
-                raw_preset_mode,
-            ),
-        )
-        await self.coordinator.async_request_debounced_refresh()
+        if preset_mode == PRESET_STANDBY:
+            self._remember_current_family_preset()
+        else:
+            self._remember_requested_resume_preset(preset_mode)
+        await self._async_set_raw_preset(raw_preset_mode)
 
     async def async_turn_on(self) -> None:
         """Turn the thermostat on by resuming the previous active preset."""
         if self._is_sq610:
-            self._remember_current_sq610_preset()
-            await self._async_set_sq610_raw_preset(self._sq610_resume_raw_preset_mode)
+            self._remember_current_family_preset()
+            await self._async_set_raw_preset(self._sq610_resume_raw_preset_mode)
             return
         if self._is_fc600:
-            self._remember_current_fc600_preset()
-            await self._async_set_fc600_raw_preset(self._fc600_resume_raw_preset_mode)
+            self._remember_current_family_preset()
+            await self._async_set_raw_preset(self._fc600_resume_raw_preset_mode)
             return
         await self.async_set_preset_mode(PRESET_PERMANENT_HOLD)
 

@@ -1,41 +1,11 @@
-"""Coordinator for Salus iT600 gateway data.
-
-This module implements the DataUpdateCoordinator pattern for polling the Salus iT600
-gateway at a configurable interval (default 20 seconds) and aggregating device state
-into a single SalusData snapshot.
-
-Architecture:
-    poll_status() flow:
-    1. Coordinator schedules _async_update_data() at the configured scan interval
-    2. _async_update_data() locks gateway (prevents concurrent requests)
-    3. gateway.poll_status() fetches all device types (climate, binary_sensor, etc.)
-    4. Device type lists extracted and packaged into SalusData dataclass
-    5. Coordinator notifies all listening platforms (climate, switch, etc.)
-    6. Platforms' _handle_coordinator_update() callback triggered
-    7. Entities update their UI representation from coordinator.data
-
-Data Flow:
-    SalusData (immutable snapshot):
-    - climate_devices: dict[unique_id] → ClimateDevice
-    - binary_sensor_devices: dict[unique_id] → BinarySensorDevice
-    - switch_devices: dict[unique_id] → SwitchDevice
-    - cover_devices: dict[unique_id] → CoverDevice
-    - sensor_devices: dict[unique_id] → SensorDevice
-
-All platforms access coordinator.data to get current device state. When data changes,
-platforms are notified and entities read from the new snapshot.
-
-Error Handling:
-    - IT600AuthenticationError: Raised on config entry auth failure (EUID mismatch)
-    - IT600ConnectionError/TimeoutError: Raised as UpdateFailed (recoverable)
-"""
+"""Coordinator for Salus iT600 gateway data."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 from collections.abc import Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, UTC, timedelta
 from typing import Any
 
@@ -56,7 +26,6 @@ from .const import (
     CONF_SCAN_INTERVAL,
     DEFAULT_POLL_FAILURE_THRESHOLD,
     DEFAULT_POST_COMMAND_REFRESH_DELAY,
-    DEFAULT_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL_SECONDS,
     DOMAIN,
     MAX_POST_COMMAND_REFRESH_DELAY,
@@ -83,17 +52,38 @@ def _exception_summary(ex: Exception) -> str:
 
 def _scan_interval_from_options(options: Mapping[str, Any]) -> timedelta:
     """Return the configured coordinator scan interval."""
-    try:
-        seconds = int(options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL_SECONDS))
-    except (TypeError, ValueError):
-        return DEFAULT_SCAN_INTERVAL
-
     return timedelta(
-        seconds=min(
-            MAX_SCAN_INTERVAL_SECONDS,
-            max(MIN_SCAN_INTERVAL_SECONDS, seconds),
+        seconds=_clamped_option(
+            options,
+            CONF_SCAN_INTERVAL,
+            DEFAULT_SCAN_INTERVAL_SECONDS,
+            minimum=MIN_SCAN_INTERVAL_SECONDS,
+            maximum=MAX_SCAN_INTERVAL_SECONDS,
+            value_type=int,
         )
     )
+
+
+def _clamped_option(
+    options: Mapping[str, Any],
+    key: str,
+    default: int | float,
+    *,
+    minimum: int | float | None = None,
+    maximum: int | float | None = None,
+    value_type: type[int] | type[float] = int,
+) -> int | float:
+    """Return one numeric option with default and bounds applied."""
+    try:
+        value = value_type(options.get(key, default))
+    except (TypeError, ValueError):
+        return default
+
+    if minimum is not None:
+        value = max(minimum, value)
+    if maximum is not None:
+        value = min(maximum, value)
+    return value
 
 
 @dataclass(slots=True)
@@ -109,14 +99,7 @@ class SalusGatewayHealth:
 
     def as_diagnostics(self) -> dict[str, Any]:
         """Return a serializable diagnostic view."""
-        return {
-            "successful_updates": self.successful_updates,
-            "failed_updates": self.failed_updates,
-            "consecutive_update_failures": self.consecutive_update_failures,
-            "last_successful_update_at": self.last_successful_update_at,
-            "last_failed_update_at": self.last_failed_update_at,
-            "last_update_error": self.last_update_error,
-        }
+        return asdict(self)
 
 
 @dataclass(slots=True)
@@ -137,34 +120,14 @@ class SalusDeviceAvailability:
 
     def as_diagnostics(self) -> dict[str, Any]:
         """Return a serializable diagnostic view."""
-        return {
-            "platform": self.platform,
-            "name": self.name,
-            "model": self.model,
-            "available": self.available,
-            "online_status": self.online_status,
-            "online_status_source": self.online_status_source,
-            "first_seen_at": self.first_seen_at,
-            "last_checked_at": self.last_checked_at,
-            "last_seen_online_at": self.last_seen_online_at,
-            "consecutive_missed_refreshes": self.consecutive_missed_refreshes,
-        }
+        diagnostics = asdict(self)
+        diagnostics.pop("device_id")
+        return diagnostics
 
 
 @dataclass(slots=True)
 class SalusData:
-    """Latest device snapshots from a Salus gateway.
-
-    Immutable snapshot of all device states as of the last coordinator update.
-    Shared by all platforms and entities for this config entry.
-
-    Attributes:
-        climate_devices: Climate entities (thermostats, fan coils) by unique_id
-        binary_sensor_devices: Binary sensors (doors, windows, etc.) by unique_id
-        switch_devices: Switches (relays) by unique_id
-        cover_devices: Covers (blinds) by unique_id
-        sensor_devices: Sensors (temperature, humidity) by unique_id
-    """
+    """Latest device snapshots from a Salus gateway."""
 
     climate_devices: dict[str, Any]
     binary_sensor_devices: dict[str, Any]
@@ -381,36 +344,27 @@ class SalusDataUpdateCoordinator(DataUpdateCoordinator[SalusData]):
 
     def _poll_failure_threshold(self) -> int:
         """Return configured consecutive poll failures before marking unavailable."""
-        options = getattr(self._config_entry, "options", {})
-        try:
-            return max(
-                0,
-                int(
-                    options.get(
-                        CONF_POLL_FAILURE_THRESHOLD,
-                        DEFAULT_POLL_FAILURE_THRESHOLD,
-                    )
-                ),
+        return int(
+            _clamped_option(
+                getattr(self._config_entry, "options", {}),
+                CONF_POLL_FAILURE_THRESHOLD,
+                DEFAULT_POLL_FAILURE_THRESHOLD,
+                minimum=0,
+                value_type=int,
             )
-        except (TypeError, ValueError):
-            return DEFAULT_POLL_FAILURE_THRESHOLD
+        )
 
     def _post_command_refresh_delay(self) -> float:
         """Return configured settle-refresh delay after a gateway write."""
-        options = getattr(self._config_entry, "options", {})
-        try:
-            delay = float(
-                options.get(
-                    CONF_POST_COMMAND_REFRESH_DELAY,
-                    DEFAULT_POST_COMMAND_REFRESH_DELAY,
-                )
+        return float(
+            _clamped_option(
+                getattr(self._config_entry, "options", {}),
+                CONF_POST_COMMAND_REFRESH_DELAY,
+                DEFAULT_POST_COMMAND_REFRESH_DELAY,
+                minimum=MIN_POST_COMMAND_REFRESH_DELAY,
+                maximum=MAX_POST_COMMAND_REFRESH_DELAY,
+                value_type=float,
             )
-        except (TypeError, ValueError):
-            return DEFAULT_POST_COMMAND_REFRESH_DELAY
-
-        return min(
-            MAX_POST_COMMAND_REFRESH_DELAY,
-            max(MIN_POST_COMMAND_REFRESH_DELAY, delay),
         )
 
     def _record_update_success(self) -> None:
