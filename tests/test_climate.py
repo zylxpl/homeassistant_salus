@@ -594,6 +594,26 @@ class TestSQ610Commands:
         assert entity.hvac_modes == [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]
 
     @pytest.mark.parametrize(
+        "fields",
+        [
+            {"system_mode": SQ610_MODE_COOL},
+            {"running_state": SQ610_RUNNING_COOL},
+        ],
+    )
+    async def test_sq610_runtime_cooling_state_proves_cooling_support(self, fields):
+        device = make_climate_device(supports_cooling=False, hvac_modes=["heat"])
+        _, _, entity = _thermostat(
+            device,
+            _fields(
+                device,
+                hold_type=SQ610_HOLD_PERMANENT,
+                **fields,
+            ),
+        )
+
+        assert entity.hvac_modes == [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]
+
+    @pytest.mark.parametrize(
         ("method", "raw_preset"),
         [
             ("async_turn_off", RAW_PRESET_OFF),

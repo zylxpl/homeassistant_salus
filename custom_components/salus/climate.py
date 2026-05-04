@@ -18,6 +18,8 @@ from salus_it600.device_models import (
     SQ610_HOLD_AUTO,
     SQ610_HOLD_PERMANENT,
     SQ610_HOLD_STANDBY,
+    SQ610_MODE_COOL,
+    SQ610_RUNNING_COOL,
     is_fan_coil_model,
 )
 
@@ -329,6 +331,8 @@ class SalusThermostat(SalusEntity, ClimateEntity):
             and (
                 getattr(device, "supports_cooling", False)
                 or HVACMode.COOL in (getattr(device, "hvac_modes", None) or [])
+                or getattr(device, "system_mode", None) == SQ610_MODE_COOL
+                or getattr(device, "running_state", None) == SQ610_RUNNING_COOL
             )
         )
 
