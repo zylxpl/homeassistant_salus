@@ -249,7 +249,7 @@ class TestSQ610Commands:
         entity = SalusThermostat(coord, device.unique_id)
         await entity.async_set_temperature(temperature=23.5)
         assert coord.gateway.calls == [
-            ("set_sq610_temperature", device.unique_id, 23.5, False)
+            ("set_climate_temperature", device.unique_id, 23.5)
         ]
         assert coord.refresh_requests == 1
 
@@ -300,7 +300,7 @@ class TestSQ610Commands:
         await entity.async_set_temperature(temperature=23.5)
 
         assert coord.gateway.calls == [
-            ("set_sq610_temperature", device.unique_id, 23.5, True)
+            ("set_climate_temperature", device.unique_id, 23.5)
         ]
         assert coord.refresh_requests == 1
 
@@ -310,7 +310,7 @@ class TestSQ610Commands:
         entity = SalusThermostat(coord, device.unique_id)
         await entity.async_set_hvac_mode(HVACMode.HEAT)
         assert coord.gateway.calls == [
-            ("set_sq610_hvac_mode", device.unique_id, HVACMode.HEAT)
+            ("set_climate_mode", device.unique_id, HVACMode.HEAT)
         ]
 
     async def test_set_hvac_mode_off_uses_preset(self):
@@ -326,7 +326,7 @@ class TestSQ610Commands:
         entity = SalusThermostat(coord, device.unique_id)
         await entity.async_set_hvac_mode(HVACMode.OFF)
         assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_OFF)
+            ("set_climate_preset", device.unique_id, RAW_PRESET_OFF)
         ]
 
     async def test_set_hvac_mode_auto_is_ignored_for_sq610(self):
@@ -355,9 +355,9 @@ class TestSQ610Commands:
         await entity.async_set_hvac_mode(HVACMode.HEAT)
 
         assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_OFF),
-            ("set_sq610_hvac_mode", device.unique_id, HVACMode.HEAT),
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_PERMANENT_HOLD),
+            ("set_climate_preset", device.unique_id, RAW_PRESET_OFF),
+            ("set_climate_mode", device.unique_id, HVACMode.HEAT),
+            ("set_climate_preset", device.unique_id, RAW_PRESET_PERMANENT_HOLD),
         ]
 
     async def test_set_hvac_mode_heat_from_standby_restores_follow_schedule(self):
@@ -381,9 +381,9 @@ class TestSQ610Commands:
         await entity.async_set_hvac_mode(HVACMode.HEAT)
 
         assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_OFF),
-            ("set_sq610_hvac_mode", device.unique_id, HVACMode.HEAT),
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE),
+            ("set_climate_preset", device.unique_id, RAW_PRESET_OFF),
+            ("set_climate_mode", device.unique_id, HVACMode.HEAT),
+            ("set_climate_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE),
         ]
 
     async def test_set_hvac_mode_heat_from_standby_without_memory_defaults_to_hold(
@@ -403,8 +403,8 @@ class TestSQ610Commands:
         await entity.async_set_hvac_mode(HVACMode.HEAT)
 
         assert coord.gateway.calls == [
-            ("set_sq610_hvac_mode", device.unique_id, HVACMode.HEAT),
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_PERMANENT_HOLD),
+            ("set_climate_mode", device.unique_id, HVACMode.HEAT),
+            ("set_climate_preset", device.unique_id, RAW_PRESET_PERMANENT_HOLD),
         ]
 
     async def test_set_hvac_mode_while_scheduled_preserves_schedule(self):
@@ -424,7 +424,7 @@ class TestSQ610Commands:
         await entity.async_set_hvac_mode(HVACMode.HEAT)
 
         assert coord.gateway.calls == [
-            ("set_sq610_hvac_mode", device.unique_id, HVACMode.HEAT)
+            ("set_climate_mode", device.unique_id, HVACMode.HEAT)
         ]
 
     async def test_set_preset_follow_schedule(self):
@@ -433,7 +433,7 @@ class TestSQ610Commands:
         entity = SalusThermostat(coord, device.unique_id)
         await entity.async_set_preset_mode(PRESET_FOLLOW_SCHEDULE)
         assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE)
+            ("set_climate_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE)
         ]
 
     async def test_set_preset_permanent_hold(self):
@@ -442,7 +442,7 @@ class TestSQ610Commands:
         entity = SalusThermostat(coord, device.unique_id)
         await entity.async_set_preset_mode(PRESET_PERMANENT_HOLD)
         assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_PERMANENT_HOLD)
+            ("set_climate_preset", device.unique_id, RAW_PRESET_PERMANENT_HOLD)
         ]
 
     async def test_set_preset_standby(self):
@@ -451,7 +451,7 @@ class TestSQ610Commands:
         entity = SalusThermostat(coord, device.unique_id)
         await entity.async_set_preset_mode(PRESET_STANDBY)
         assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_OFF)
+            ("set_climate_preset", device.unique_id, RAW_PRESET_OFF)
         ]
 
     async def test_set_preset_while_standby_turns_on(self):
@@ -469,7 +469,7 @@ class TestSQ610Commands:
         await entity.async_set_preset_mode(PRESET_FOLLOW_SCHEDULE)
 
         assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE),
+            ("set_climate_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE),
         ]
 
     async def test_physical_preset_change_updates_resume_memory(self):
@@ -499,9 +499,9 @@ class TestSQ610Commands:
         await entity.async_set_hvac_mode(HVACMode.HEAT)
 
         assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_OFF),
-            ("set_sq610_hvac_mode", device.unique_id, HVACMode.HEAT),
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE),
+            ("set_climate_preset", device.unique_id, RAW_PRESET_OFF),
+            ("set_climate_mode", device.unique_id, HVACMode.HEAT),
+            ("set_climate_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE),
         ]
 
     async def test_unknown_hold_type_does_not_overwrite_resume_memory(self):
@@ -531,9 +531,9 @@ class TestSQ610Commands:
         await entity.async_set_hvac_mode(HVACMode.HEAT)
 
         assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_OFF),
-            ("set_sq610_hvac_mode", device.unique_id, HVACMode.HEAT),
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE),
+            ("set_climate_preset", device.unique_id, RAW_PRESET_OFF),
+            ("set_climate_mode", device.unique_id, HVACMode.HEAT),
+            ("set_climate_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE),
         ]
 
     async def test_sq610_cooling_support_stays_available_after_sparse_payload(self):
@@ -565,7 +565,7 @@ class TestSQ610Commands:
         entity = SalusThermostat(coord, device.unique_id)
         await entity.async_turn_off()
         assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_OFF)
+            ("set_climate_preset", device.unique_id, RAW_PRESET_OFF)
         ]
 
     async def test_turn_on(self):
@@ -574,7 +574,7 @@ class TestSQ610Commands:
         entity = SalusThermostat(coord, device.unique_id)
         await entity.async_turn_on()
         assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_PERMANENT_HOLD)
+            ("set_climate_preset", device.unique_id, RAW_PRESET_PERMANENT_HOLD)
         ]
 
     async def test_turn_on_restores_remembered_schedule(self):
@@ -596,8 +596,8 @@ class TestSQ610Commands:
         await entity.async_turn_on()
 
         assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_OFF),
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE),
+            ("set_climate_preset", device.unique_id, RAW_PRESET_OFF),
+            ("set_climate_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE),
         ]
 
     async def test_commands_trigger_refresh(self):

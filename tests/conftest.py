@@ -66,17 +66,6 @@ class FakeGateway:
     async def set_climate_device_fan_mode(self, device_id: str, mode: str) -> None:
         self._record("set_climate_fan_mode", device_id, mode)
 
-    async def set_sq610_device_temperature(
-        self, device_id: str, setpoint_celsius: float, *, cooling: bool = False
-    ) -> None:
-        self._record("set_sq610_temperature", device_id, setpoint_celsius, cooling)
-
-    async def set_sq610_device_hvac_mode(self, device_id: str, mode: str) -> None:
-        self._record("set_sq610_hvac_mode", device_id, mode)
-
-    async def set_sq610_device_preset(self, device_id: str, preset: str) -> None:
-        self._record("set_sq610_preset", device_id, preset)
-
 
 class FakeCoordinator:
     """Minimal coordinator fake for entity unit tests.

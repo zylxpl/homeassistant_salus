@@ -357,7 +357,7 @@ class SalusThermostat(SalusEntity, ClimateEntity):
         """Set an SQ610 raw preset and refresh state."""
         await self._async_run_gateway_command(
             "set SQ610 preset",
-            lambda: self.coordinator.gateway.set_sq610_device_preset(
+            lambda: self.coordinator.gateway.set_climate_device_preset(
                 self._device_id,
                 raw_preset_mode,
             ),
@@ -401,10 +401,9 @@ class SalusThermostat(SalusEntity, ClimateEntity):
                 return
             await self._async_run_gateway_command(
                 "set SQ610 target temperature",
-                lambda: self.coordinator.gateway.set_sq610_device_temperature(
+                lambda: self.coordinator.gateway.set_climate_device_temperature(
                     self._device_id,
                     temperature,
-                    cooling=self._effective_hvac_mode == HVACMode.COOL,
                 ),
             )
             await self._async_request_debounced_refresh_after_sq610_write()
@@ -480,12 +479,12 @@ class SalusThermostat(SalusEntity, ClimateEntity):
             raw_resume_preset = self._sq610_resume_raw_preset_mode
 
             async def set_sq610_mode() -> None:
-                await self.coordinator.gateway.set_sq610_device_hvac_mode(
+                await self.coordinator.gateway.set_climate_device_mode(
                     self._device_id,
                     hvac_mode,
                 )
                 if restore_preset:
-                    await self.coordinator.gateway.set_sq610_device_preset(
+                    await self.coordinator.gateway.set_climate_device_preset(
                         self._device_id,
                         raw_resume_preset,
                     )
