@@ -128,8 +128,8 @@ class SalusDeviceAvailability:
     name: str | None
     model: str | None
     available: bool
-    raw_online_status: Any
-    raw_online_status_source: str
+    online_status: Any
+    online_status_source: str
     first_seen_at: str
     last_checked_at: str
     last_seen_online_at: str | None
@@ -142,8 +142,8 @@ class SalusDeviceAvailability:
             "name": self.name,
             "model": self.model,
             "available": self.available,
-            "raw_online_status": self.raw_online_status,
-            "raw_online_status_source": self.raw_online_status_source,
+            "online_status": self.online_status,
+            "online_status_source": self.online_status_source,
             "first_seen_at": self.first_seen_at,
             "last_checked_at": self.last_checked_at,
             "last_seen_online_at": self.last_seen_online_at,
@@ -202,8 +202,8 @@ def _device_available(device: Any) -> bool:
     return bool(getattr(device, "available", True))
 
 
-def _raw_online_status(device: Any) -> tuple[Any, str]:
-    """Return raw or inferred online status for diagnostics."""
+def _device_online_status(device: Any) -> tuple[Any, str]:
+    """Return normalized or inferred online status for diagnostics."""
     online_status = getattr(device, "online_status", None)
     if online_status is not None:
         return online_status, "normalized_online_status"
@@ -468,7 +468,7 @@ class SalusDataUpdateCoordinator(DataUpdateCoordinator[SalusData]):
             for device_id, device in devices.items():
                 current_device_ids.add(device_id)
                 available = _device_available(device)
-                raw_status, raw_status_source = _raw_online_status(device)
+                online_status, online_status_source = _device_online_status(device)
                 status = self._device_availability.get(device_id)
 
                 if status is None:
@@ -478,8 +478,8 @@ class SalusDataUpdateCoordinator(DataUpdateCoordinator[SalusData]):
                         name=getattr(device, "name", None),
                         model=getattr(device, "model", None),
                         available=available,
-                        raw_online_status=raw_status,
-                        raw_online_status_source=raw_status_source,
+                        online_status=online_status,
+                        online_status_source=online_status_source,
                         first_seen_at=checked_at,
                         last_checked_at=checked_at,
                         last_seen_online_at=checked_at if available else None,
@@ -492,8 +492,8 @@ class SalusDataUpdateCoordinator(DataUpdateCoordinator[SalusData]):
                 status.name = getattr(device, "name", None)
                 status.model = getattr(device, "model", None)
                 status.available = available
-                status.raw_online_status = raw_status
-                status.raw_online_status_source = raw_status_source
+                status.online_status = online_status
+                status.online_status_source = online_status_source
                 status.last_checked_at = checked_at
 
                 if available:
@@ -507,7 +507,7 @@ class SalusDataUpdateCoordinator(DataUpdateCoordinator[SalusData]):
                 continue
 
             status.available = False
-            status.raw_online_status = None
-            status.raw_online_status_source = "missing_from_snapshot"
+            status.online_status = None
+            status.online_status_source = "missing_from_snapshot"
             status.last_checked_at = checked_at
             status.consecutive_missed_refreshes += 1

@@ -25,7 +25,9 @@ This repository contains the Home Assistant custom integration:
 Gateway protocol parsing, encryption, device models, and low-level commands
 belong in `salus-it600-client`. If a Home Assistant change needs raw gateway
 fields or a new command payload, add a public client method first and consume
-that method here.
+that method here. Climate entities and diagnostics should consume normalized
+client model fields and the shared diagnostic support-field whitelist instead
+of adding device-family raw polling in the integration.
 
 ## Fork Workflow
 

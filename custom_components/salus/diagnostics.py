@@ -10,11 +10,11 @@ from homeassistant.const import CONF_HOST, CONF_TOKEN
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
-from .coordinator import SalusData, SalusRuntimeData, is_sq610_device
+from .coordinator import SalusData, SalusRuntimeData
 
 TO_REDACT = {CONF_TOKEN}
 
-SQ610_SUPPORT_FIELDS = (
+CLIMATE_SUPPORT_FIELDS = (
     "UniID",
     "DeviceName",
     "ModelIdentifier_i",
@@ -71,7 +71,7 @@ async def async_get_config_entry_diagnostics(
             },
             "device_counts": _device_counts(data),
             "device_availability": coordinator.device_availability_diagnostics(),
-            "sq610": _sq610_diagnostics(data),
+            "climate": _climate_diagnostics(data),
         }
     )
     return diagnostics
@@ -104,16 +104,13 @@ def _device_counts(data: SalusData | None) -> dict[str, int]:
     }
 
 
-def _sq610_diagnostics(data: SalusData | None) -> dict[str, Any]:
-    """Return SQ610 normalized diagnostics useful for field support."""
+def _climate_diagnostics(data: SalusData | None) -> dict[str, Any]:
+    """Return normalized climate diagnostics useful for field support."""
     if data is None:
         return {"devices": {}}
 
     devices: dict[str, Any] = {}
     for device_id, device in sorted(data.climate_devices.items()):
-        if not is_sq610_device(device):
-            continue
-
         diagnostic_fields = getattr(device, "diagnostic_fields", None)
         if not isinstance(diagnostic_fields, dict):
             diagnostic_fields = {}
@@ -124,6 +121,22 @@ def _sq610_diagnostics(data: SalusData | None) -> dict[str, Any]:
             "field_count": len(diagnostic_fields),
             "present_fields": sorted(diagnostic_fields),
             "normalized_fields": {
+                "current_temperature": getattr(device, "current_temperature", None),
+                "current_humidity": getattr(device, "current_humidity", None),
+                "target_temperature": getattr(device, "target_temperature", None),
+                "min_temp": getattr(device, "min_temp", None),
+                "max_temp": getattr(device, "max_temp", None),
+                "hvac_mode": getattr(device, "hvac_mode", None),
+                "hvac_action": getattr(device, "hvac_action", None),
+                "hvac_modes": list(getattr(device, "hvac_modes", None) or []),
+                "preset_mode": getattr(device, "preset_mode", None),
+                "preset_modes": list(getattr(device, "preset_modes", None) or []),
+                "fan_mode": getattr(device, "fan_mode", None),
+                "fan_modes": (
+                    None
+                    if getattr(device, "fan_modes", None) is None
+                    else list(getattr(device, "fan_modes", None) or [])
+                ),
                 "online_status": getattr(device, "online_status", None),
                 "hold_type": getattr(device, "hold_type", None),
                 "system_mode": getattr(device, "system_mode", None),
@@ -137,6 +150,8 @@ def _sq610_diagnostics(data: SalusData | None) -> dict[str, Any]:
                 "heating_control": getattr(device, "heating_control", None),
                 "cooling_control": getattr(device, "cooling_control", None),
                 "supports_cooling": getattr(device, "supports_cooling", None),
+                "supports_fan": getattr(device, "supports_fan", None),
+                "supports_heat": getattr(device, "supports_heat", None),
                 "cooling_capability_source": getattr(
                     device,
                     "cooling_capability_source",
@@ -145,7 +160,7 @@ def _sq610_diagnostics(data: SalusData | None) -> dict[str, Any]:
             },
             "support_fields": {
                 field: diagnostic_fields.get(field)
-                for field in SQ610_SUPPORT_FIELDS
+                for field in CLIMATE_SUPPORT_FIELDS
                 if field in diagnostic_fields
             },
         }

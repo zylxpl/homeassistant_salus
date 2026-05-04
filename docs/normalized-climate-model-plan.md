@@ -18,6 +18,19 @@ SQ610 command/state logic once the client exposes the normalized model. Preserve
 old behavior only when it does not make the implementation or future maintenance
 even slightly harder.
 
+## Current Implementation Status
+
+- Normal climate polling no longer calls `gateway.fetch_sq610_properties()` or
+  stores `raw_climate_props` in `SalusData`.
+- SQ610, FC600, TRV, and standard thermostat entities consume the same
+  normalized climate-device fields where the device families expose equivalent
+  concepts.
+- Climate diagnostics are shared across thermostat families. They report
+  normalized fields plus a documented client support-field whitelist instead of
+  a SQ610-only raw payload snapshot.
+- Active heat/cool setpoint and range selection are shared client rules, with
+  protocol differences kept inside the client parser/write paths.
+
 ## Current Problem
 
 The integration currently keeps SQ610 state working by reading
@@ -58,7 +71,7 @@ all of these have replacements from the client model with tests proving parity:
 - SQ610 turn-on restores the remembered non-standby preset.
 - SQ610 lock entity still appears and writes correctly.
 - SQ610 humidity, floor temperature, battery, and problem sensors remain.
-- SQ610 diagnostics and device availability remain useful without raw polling.
+- Climate diagnostics and device availability remain useful without raw polling.
 - FC600 heat/cool/off, Eco, fan modes, lock, and setpoint writes remain.
 - FC600 variants such as `FC600NH` are treated like FC600.
 - Standard thermostats keep the simplified HVAC menu behavior.
@@ -102,8 +115,8 @@ all of these have replacements from the client model with tests proving parity:
      fakes, and shared fixture factories.
    - Update `extra_state_attributes` to expose normalized support fields, not
      raw `SystemMode`/`RunningState`/`HoldType` fetched by the coordinator.
-   - Keep diagnostics based on a documented client support-field whitelist,
-     rather than flattening raw gateway payloads into entity state.
+   - Keep diagnostics based on a documented shared client support-field
+     whitelist, rather than flattening raw gateway payloads into entity state.
 
 4. Simplify coordinator polling.
    - Remove `_async_fetch_raw_climate_props()` from `_async_update_data()`.
@@ -114,9 +127,9 @@ all of these have replacements from the client model with tests proving parity:
      uses them.
    - Update availability diagnostics to use `device.available` and any
      normalized `online_status`/support field exposed by the client.
-   - Update SQ610 diagnostics to read normalized diagnostic/support fields from
-     climate devices and child entities. If raw debug data is still useful, make
-     it an explicit support diagnostic action, not part of polling.
+   - Update climate diagnostics to read normalized diagnostic/support fields
+     from all climate devices and child entities. If raw debug data is still
+     useful, make it an explicit support diagnostic action, not part of polling.
 
 5. Simplify SQ610 command paths after client routing exists.
    - Prefer generic semantic client methods when they can route SQ610 writes
@@ -152,7 +165,7 @@ Integration tests must cover:
   `gateway.fetch_sq610_properties()` and can run against a gateway fake that
   does not implement that method.
 - FC600NH Home Assistant behavior with fan-coil controls.
-- Diagnostics and availability with no raw SQ610 polling.
+- Shared climate diagnostics and availability with no raw SQ610 polling.
 - Climate, lock, and child entity identifiers remain stable where that does not
   add adapter complexity; any intentional identifier change is documented as a
   breaking migration.

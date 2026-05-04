@@ -128,7 +128,7 @@ The SQ610 Quantum thermostat has additional handling:
 - `Cool` mode exposure only when the gateway reports cooling support
 - Direct standby handling via `HoldType`, exposed as HVAC `Off`
 - Simplified preset controls: `Permanent Hold` and `Follow Schedule`
-- Humidity reading from the `SunnySetpoint_x100` register
+- Humidity exposed through the normalized client model
 - Floor temperature from external probe (`OUTSensorProbe`)
 
 Selecting **Follow Schedule** returns the thermostat to the schedule configured in the Salus Smart Home app.
@@ -175,7 +175,10 @@ This method is useful for one-off troubleshooting since it automatically reverts
 2. Select the **Salus iT600** integration.
 3. Open the three-dot menu → **Download diagnostics**.
 
-Diagnostics include integration version, gateway health counters, device counts, availability history, and SQ610 support fields. The gateway EUID/token is redacted automatically.
+Diagnostics include integration version, gateway health counters, device counts,
+availability history, and shared climate diagnostics with normalized fields plus
+whitelisted support fields for each thermostat. The gateway EUID/token is
+redacted automatically.
 
 Review the file before posting publicly — it may contain your gateway IP and device IDs.
 
