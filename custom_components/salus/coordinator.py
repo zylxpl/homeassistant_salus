@@ -10,10 +10,9 @@ Architecture:
     2. _async_update_data() locks gateway (prevents concurrent requests)
     3. gateway.poll_status() fetches all device types (climate, binary_sensor, etc.)
     4. Device type lists extracted and packaged into SalusData dataclass
-    5. SQ610 raw props fetched separately (protocol quirk workaround)
-    6. Coordinator notifies all listening platforms (climate, switch, etc.)
-    7. Platforms' _handle_coordinator_update() callback triggered
-    8. Entities update their UI representation from coordinator.data
+    5. Coordinator notifies all listening platforms (climate, switch, etc.)
+    6. Platforms' _handle_coordinator_update() callback triggered
+    7. Entities update their UI representation from coordinator.data
 
 Data Flow:
     SalusData (immutable snapshot):
@@ -22,7 +21,6 @@ Data Flow:
     - switch_devices: dict[unique_id] → SwitchDevice
     - cover_devices: dict[unique_id] → CoverDevice
     - sensor_devices: dict[unique_id] → SensorDevice
-    - raw_climate_props: dict[unique_id] → SQ610-specific raw payload fields
 
 All platforms access coordinator.data to get current device state. When data changes,
 platforms are notified and entities read from the new snapshot.
@@ -30,7 +28,6 @@ platforms are notified and entities read from the new snapshot.
 Error Handling:
     - IT600AuthenticationError: Raised on config entry auth failure (EUID mismatch)
     - IT600ConnectionError/TimeoutError: Raised as UpdateFailed (recoverable)
-    - Exception: Logged with warning for raw SQ610 props (non-blocking fallback)
 """
 
 from __future__ import annotations
@@ -49,11 +46,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from salus_it600.exceptions import (
-    IT600AuthenticationError,
-    IT600CommandError,
-    IT600ConnectionError,
-)
+from salus_it600.exceptions import IT600AuthenticationError, IT600ConnectionError
 from salus_it600.gateway import IT600Gateway
 from salus_it600.device_models import is_sq610_model
 
@@ -113,11 +106,6 @@ class SalusGatewayHealth:
     last_successful_update_at: str | None = None
     last_failed_update_at: str | None = None
     last_update_error: str | None = None
-    raw_sq610_fetch_successes: int = 0
-    raw_sq610_fetch_failures: int = 0
-    last_raw_sq610_fetch_success_at: str | None = None
-    last_raw_sq610_fetch_failure_at: str | None = None
-    last_raw_sq610_fetch_error: str | None = None
 
     def as_diagnostics(self) -> dict[str, Any]:
         """Return a serializable diagnostic view."""
@@ -128,15 +116,6 @@ class SalusGatewayHealth:
             "last_successful_update_at": self.last_successful_update_at,
             "last_failed_update_at": self.last_failed_update_at,
             "last_update_error": self.last_update_error,
-            "raw_sq610_fetch_successes": self.raw_sq610_fetch_successes,
-            "raw_sq610_fetch_failures": self.raw_sq610_fetch_failures,
-            "last_raw_sq610_fetch_success_at": (
-                self.last_raw_sq610_fetch_success_at
-            ),
-            "last_raw_sq610_fetch_failure_at": (
-                self.last_raw_sq610_fetch_failure_at
-            ),
-            "last_raw_sq610_fetch_error": self.last_raw_sq610_fetch_error,
         }
 
 
@@ -185,9 +164,6 @@ class SalusData:
         switch_devices: Switches (relays) by unique_id
         cover_devices: Covers (blinds) by unique_id
         sensor_devices: Sensors (temperature, humidity) by unique_id
-        raw_climate_props: SQ610 Quantum thermostat raw protocol fields (workaround for
-            protocol quirks like humidity in SunnySetpoint_x100). Maps unique_id → dict
-            of flattened payload fields not exposed by salus_it600 models.
     """
 
     climate_devices: dict[str, Any]
@@ -195,7 +171,6 @@ class SalusData:
     switch_devices: dict[str, Any]
     cover_devices: dict[str, Any]
     sensor_devices: dict[str, Any]
-    raw_climate_props: dict[str, dict[str, Any]]
 
 
 @dataclass(slots=True)
@@ -227,15 +202,15 @@ def _device_available(device: Any) -> bool:
     return bool(getattr(device, "available", True))
 
 
-def _raw_online_status(
-    device_id: str,
-    device: Any,
-    raw_climate_props: dict[str, dict[str, Any]],
-) -> tuple[Any, str]:
+def _raw_online_status(device: Any) -> tuple[Any, str]:
     """Return raw or inferred online status for diagnostics."""
-    raw_props = raw_climate_props.get(device_id, {})
-    if "OnlineStatus_i" in raw_props:
-        return raw_props["OnlineStatus_i"], "raw_sq610_props"
+    online_status = getattr(device, "online_status", None)
+    if online_status is not None:
+        return online_status, "normalized_online_status"
+
+    diagnostic_fields = getattr(device, "diagnostic_fields", None)
+    if isinstance(diagnostic_fields, dict) and "OnlineStatus_i" in diagnostic_fields:
+        return diagnostic_fields["OnlineStatus_i"], "diagnostic_fields"
 
     device_data = getattr(device, "data", None)
     if isinstance(device_data, dict):
@@ -365,9 +340,6 @@ class SalusDataUpdateCoordinator(DataUpdateCoordinator[SalusData]):
                 async with self.gateway_lock:
                     await self.gateway.poll_status()
                     climate_devices = dict(self.gateway.get_climate_devices() or {})
-                    raw_climate_props = await self._async_fetch_raw_climate_props(
-                        climate_devices
-                    )
 
                     data = SalusData(
                         climate_devices=climate_devices,
@@ -377,7 +349,6 @@ class SalusDataUpdateCoordinator(DataUpdateCoordinator[SalusData]):
                         switch_devices=dict(self.gateway.get_switch_devices() or {}),
                         cover_devices=dict(self.gateway.get_cover_devices() or {}),
                         sensor_devices=dict(self.gateway.get_sensor_devices() or {}),
-                        raw_climate_props=raw_climate_props,
                     )
 
                     self._update_device_availability(data)
@@ -488,20 +459,6 @@ class SalusDataUpdateCoordinator(DataUpdateCoordinator[SalusData]):
             self._gateway_unavailable_issue_id(),
         )
 
-    def _record_raw_sq610_fetch_success(self) -> None:
-        """Record a successful raw SQ610 property fetch."""
-        health = self._gateway_health
-        health.raw_sq610_fetch_successes += 1
-        health.last_raw_sq610_fetch_success_at = _utcnow_iso()
-        health.last_raw_sq610_fetch_error = None
-
-    def _record_raw_sq610_fetch_failure(self, ex: Exception) -> None:
-        """Record a failed raw SQ610 property fetch."""
-        health = self._gateway_health
-        health.raw_sq610_fetch_failures += 1
-        health.last_raw_sq610_fetch_failure_at = _utcnow_iso()
-        health.last_raw_sq610_fetch_error = _exception_summary(ex)
-
     def _update_device_availability(self, data: SalusData) -> None:
         """Update per-device availability history from one successful poll."""
         checked_at = _utcnow_iso()
@@ -511,11 +468,7 @@ class SalusDataUpdateCoordinator(DataUpdateCoordinator[SalusData]):
             for device_id, device in devices.items():
                 current_device_ids.add(device_id)
                 available = _device_available(device)
-                raw_status, raw_status_source = _raw_online_status(
-                    device_id,
-                    device,
-                    data.raw_climate_props,
-                )
+                raw_status, raw_status_source = _raw_online_status(device)
                 status = self._device_availability.get(device_id)
 
                 if status is None:
@@ -558,57 +511,3 @@ class SalusDataUpdateCoordinator(DataUpdateCoordinator[SalusData]):
             status.raw_online_status_source = "missing_from_snapshot"
             status.last_checked_at = checked_at
             status.consecutive_missed_refreshes += 1
-
-    async def _async_fetch_raw_climate_props(
-        self,
-        climate_devices: dict[str, Any],
-    ) -> dict[str, dict[str, Any]]:
-        """Fetch raw SQ610 properties not exposed by salus_it600 models.
-
-        SQ610 Quantum thermostats have unusual protocol quirks:
-        - Humidity stored in SunnySetpoint_x100 field (not standard humidity field)
-        - Write property names differ from read property names
-        - Dual setpoints (heating vs cooling) based on system mode
-
-        salus_it600.gateway.py handles most quirks internally, but this integration
-        needs raw payload access for certain SQ610-specific features (e.g., custom
-        preset mapping). This method makes an additional encrypted request to fetch
-        raw SQ610 device data and flatten it for use by climate.py.
-
-        Non-blocking: If this call fails, it logs a warning and returns last known
-        values or empty dict. The main poll_status() succeeds regardless.
-
-        Args:
-            climate_devices: Climate devices from coordinator.data to check for SQ610
-
-        Returns:
-            dict[unique_id] → flattened raw payload fields for SQ610 devices,
-            or previous values if fetch fails
-        """
-        sq610_devices = [
-            device for device in climate_devices.values() if is_sq610_device(device)
-        ]
-        if not sq610_devices:
-            return {}
-
-        try:
-            raw_props = await self.gateway.fetch_sq610_properties(
-                [device.unique_id for device in sq610_devices],
-            )
-            self._record_raw_sq610_fetch_success()
-            return raw_props
-        except (IT600CommandError, IT600ConnectionError, TimeoutError) as ex:
-            self._record_raw_sq610_fetch_failure(ex)
-            _LOGGER.warning(
-                "Failed to read raw SQ610 climate properties: %s; "
-                "using last known values",
-                ex,
-            )
-            return self.data.raw_climate_props if self.data is not None else {}
-        except Exception as ex:
-            self._record_raw_sq610_fetch_failure(ex)
-            _LOGGER.exception(
-                "Unexpected error while reading raw SQ610 climate properties; "
-                "using last known values",
-            )
-            return self.data.raw_climate_props if self.data is not None else {}

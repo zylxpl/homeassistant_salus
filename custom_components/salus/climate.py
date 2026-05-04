@@ -18,8 +18,6 @@ from salus_it600.device_models import (
     SQ610_HOLD_AUTO,
     SQ610_HOLD_PERMANENT,
     SQ610_HOLD_STANDBY,
-    SQ610_MODE_COOL,
-    SQ610_RUNNING_COOL,
     is_fan_coil_model,
 )
 
@@ -96,14 +94,6 @@ class SalusThermostat(SalusEntity, ClimateEntity):
         return None if data is None else data.climate_devices.get(self._device_id)
 
     @property
-    def _raw_props(self) -> dict[str, Any]:
-        """Return the raw gateway properties for SQ610 devices."""
-        data: SalusData | None = self.coordinator.data
-        if data is None:
-            return {}
-        return data.raw_climate_props.get(self._device_id, {})
-
-    @property
     def _is_sq610(self) -> bool:
         """Return whether the thermostat is a Quantum model."""
         return is_sq610_device(self._device)
@@ -130,7 +120,6 @@ class SalusThermostat(SalusEntity, ClimateEntity):
             fc600_resume_preset_mode = self._fc600_resume_preset_mode
         return build_climate_view_state(
             self._device,
-            self._raw_props,
             sq610_resume_preset_mode=resume_preset_mode,
             sq610_known_supports_cooling=known_supports_cooling,
             fc600_resume_preset_mode=fc600_resume_preset_mode,
@@ -141,7 +130,6 @@ class SalusThermostat(SalusEntity, ClimateEntity):
         """Return the current Salus control capabilities for this device."""
         return build_climate_capabilities(
             self._device,
-            self._raw_props,
             self._sq610_supports_cooling,
         )
 
@@ -237,17 +225,24 @@ class SalusThermostat(SalusEntity, ClimateEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Expose the raw Salus state while the HA controls stay simplified."""
+        """Expose normalized Salus state while the HA controls stay simplified."""
         device = self._device
         if device is None:
             return {}
 
         attributes = {
-            "salus_raw_hvac_mode": device.hvac_mode,
-            "salus_raw_preset_mode": device.preset_mode,
-            "salus_raw_system_mode": self._raw_props.get("SystemMode"),
-            "salus_raw_running_state": self._raw_props.get("RunningState"),
-            "salus_raw_hold_type": self._raw_props.get("HoldType"),
+            "salus_hvac_mode": device.hvac_mode,
+            "salus_preset_mode": device.preset_mode,
+            "salus_hold_type": getattr(device, "hold_type", None),
+            "salus_system_mode": getattr(device, "system_mode", None),
+            "salus_running_state": getattr(device, "running_state", None),
+            "salus_heating_setpoint": getattr(device, "heating_setpoint", None),
+            "salus_cooling_setpoint": getattr(device, "cooling_setpoint", None),
+            "salus_cooling_capability_source": getattr(
+                device,
+                "cooling_capability_source",
+                None,
+            ),
         }
         extra = getattr(device, "extra_state_attributes", None)
         if isinstance(extra, dict):
@@ -263,8 +258,12 @@ class SalusThermostat(SalusEntity, ClimateEntity):
         await self.coordinator.async_request_debounced_refresh()
 
     def _current_sq610_preset_mode(self) -> str | None:
-        """Return the active non-standby SQ610 preset from raw or parsed state."""
-        hold_type = self._raw_props.get("HoldType")
+        """Return the active non-standby SQ610 preset from normalized state."""
+        device = self._device
+        if device is None:
+            return None
+
+        hold_type = getattr(device, "hold_type", None)
         if hold_type == SQ610_HOLD_AUTO:
             return PRESET_FOLLOW_SCHEDULE
         if hold_type == SQ610_HOLD_PERMANENT:
@@ -280,10 +279,6 @@ class SalusThermostat(SalusEntity, ClimateEntity):
                     self._device_id,
                     hold_type,
                 )
-            return None
-
-        device = self._device
-        if device is None:
             return None
 
         preset_mode = getattr(device, "preset_mode", None)
@@ -322,15 +317,14 @@ class SalusThermostat(SalusEntity, ClimateEntity):
 
     def _sq610_snapshot_supports_cooling(self) -> bool:
         """Return whether the current SQ610 snapshot proves cooling support."""
-        raw_props = self._raw_props
-        if (
-            raw_props.get("SystemMode") == SQ610_MODE_COOL
-            or raw_props.get("RunningState") == SQ610_RUNNING_COOL
-            or raw_props.get("CoolingSetpoint_x100") is not None
-        ):
-            return True
-
-        return False
+        device = self._device
+        return bool(
+            device is not None
+            and (
+                getattr(device, "supports_cooling", False)
+                or HVACMode.COOL in (getattr(device, "hvac_modes", None) or [])
+            )
+        )
 
     def _remember_sq610_cooling_support(self) -> None:
         """Keep Cool exposed after an SQ610 has proved cooling support once."""
@@ -393,7 +387,7 @@ class SalusThermostat(SalusEntity, ClimateEntity):
             return
 
         if self._is_sq610:
-            if self._raw_props.get("HoldType") == SQ610_HOLD_STANDBY:
+            if getattr(self._device, "hold_type", None) == SQ610_HOLD_STANDBY:
                 _LOGGER.debug(
                     "Ignoring SQ610 target temperature change while %s is in standby",
                     self._device_id,
@@ -475,7 +469,9 @@ class SalusThermostat(SalusEntity, ClimateEntity):
             return
 
         if self._is_sq610:
-            restore_preset = self._raw_props.get("HoldType") == SQ610_HOLD_STANDBY
+            restore_preset = (
+                getattr(self._device, "hold_type", None) == SQ610_HOLD_STANDBY
+            )
             raw_resume_preset = self._sq610_resume_raw_preset_mode
 
             async def set_sq610_mode() -> None:

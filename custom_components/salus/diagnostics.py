@@ -10,7 +10,7 @@ from homeassistant.const import CONF_HOST, CONF_TOKEN
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
-from .coordinator import SalusData, SalusRuntimeData
+from .coordinator import SalusData, SalusRuntimeData, is_sq610_device
 
 TO_REDACT = {CONF_TOKEN}
 
@@ -105,19 +105,48 @@ def _device_counts(data: SalusData | None) -> dict[str, int]:
 
 
 def _sq610_diagnostics(data: SalusData | None) -> dict[str, Any]:
-    """Return SQ610 raw-property diagnostics useful for field support."""
+    """Return SQ610 normalized diagnostics useful for field support."""
     if data is None:
         return {"devices": {}}
 
     devices: dict[str, Any] = {}
-    for device_id, raw_props in sorted(data.raw_climate_props.items()):
+    for device_id, device in sorted(data.climate_devices.items()):
+        if not is_sq610_device(device):
+            continue
+
+        diagnostic_fields = getattr(device, "diagnostic_fields", None)
+        if not isinstance(diagnostic_fields, dict):
+            diagnostic_fields = {}
+
         devices[device_id] = {
-            "field_count": len(raw_props),
-            "present_fields": sorted(raw_props),
+            "model": getattr(device, "model", None),
+            "available": getattr(device, "available", None),
+            "field_count": len(diagnostic_fields),
+            "present_fields": sorted(diagnostic_fields),
+            "normalized_fields": {
+                "online_status": getattr(device, "online_status", None),
+                "hold_type": getattr(device, "hold_type", None),
+                "system_mode": getattr(device, "system_mode", None),
+                "running_state": getattr(device, "running_state", None),
+                "heating_setpoint": getattr(device, "heating_setpoint", None),
+                "cooling_setpoint": getattr(device, "cooling_setpoint", None),
+                "min_heat_temp": getattr(device, "min_heat_temp", None),
+                "max_heat_temp": getattr(device, "max_heat_temp", None),
+                "min_cool_temp": getattr(device, "min_cool_temp", None),
+                "max_cool_temp": getattr(device, "max_cool_temp", None),
+                "heating_control": getattr(device, "heating_control", None),
+                "cooling_control": getattr(device, "cooling_control", None),
+                "supports_cooling": getattr(device, "supports_cooling", None),
+                "cooling_capability_source": getattr(
+                    device,
+                    "cooling_capability_source",
+                    None,
+                ),
+            },
             "support_fields": {
-                field: raw_props.get(field)
+                field: diagnostic_fields.get(field)
                 for field in SQ610_SUPPORT_FIELDS
-                if field in raw_props
+                if field in diagnostic_fields
             },
         }
 

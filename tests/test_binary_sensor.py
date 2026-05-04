@@ -18,7 +18,6 @@ def _coordinator_with_binary_sensors(*devices):
         switch_devices={},
         cover_devices={},
         sensor_devices={},
-        raw_climate_props={},
     )
     return FakeCoordinator(data=data)
 

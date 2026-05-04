@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -18,7 +17,6 @@ from homeassistant.components.climate.const import (
     HVACAction,
     HVACMode,
 )
-from salus_it600.const import TEMPERATURE_SCALE
 from salus_it600.device_models import (
     SQ610_HOLD_AUTO,
     SQ610_HOLD_PERMANENT,
@@ -125,7 +123,6 @@ def is_fc600_device(device: Any) -> bool:
 
 def build_climate_view_state(
     device: Any | None,
-    raw_props: Mapping[str, Any],
     sq610_resume_preset_mode: str | None = None,
     sq610_known_supports_cooling: bool = False,
     fc600_resume_preset_mode: str | None = None,
@@ -133,22 +130,20 @@ def build_climate_view_state(
     """Build the Home Assistant-facing state for a Salus climate device."""
     capabilities = build_climate_capabilities(
         device,
-        raw_props,
         sq610_known_supports_cooling,
     )
-    hvac_mode = _effective_hvac_mode(device, raw_props, capabilities)
+    hvac_mode = _effective_hvac_mode(device, capabilities)
     return ClimateViewState(
         supports_cooling=capabilities.supports_cooling,
         supported_features=_supported_features(device, capabilities),
-        current_temperature=_current_temperature(device, raw_props),
-        current_humidity=_current_humidity(device, raw_props),
+        current_temperature=None if device is None else device.current_temperature,
+        current_humidity=None if device is None else device.current_humidity,
         hvac_mode=hvac_mode,
         hvac_modes=_build_hvac_modes(device, capabilities),
-        hvac_action=_hvac_action(device, raw_props),
-        target_temperature=_target_temperature(device, raw_props, hvac_mode),
+        hvac_action=_hvac_action(device),
+        target_temperature=None if device is None else device.target_temperature,
         preset_mode=_effective_preset_mode(
             device,
-            raw_props,
             capabilities,
             sq610_resume_preset_mode,
             fc600_resume_preset_mode,
@@ -161,7 +156,6 @@ def build_climate_view_state(
 
 def build_climate_capabilities(
     device: Any | None,
-    raw_props: Mapping[str, Any],
     sq610_known_supports_cooling: bool = False,
 ) -> ClimateCapabilities:
     """Return the Salus control capabilities for a climate device."""
@@ -182,7 +176,7 @@ def build_climate_capabilities(
     is_fc600 = is_fc600_device(device)
     hvac_modes = getattr(device, "hvac_modes", None) or []
     preset_modes = getattr(device, "preset_modes", None) or []
-    supports_cooling = _supports_cooling(device, raw_props) or (
+    supports_cooling = _supports_cooling(device) or (
         is_sq610 and sq610_known_supports_cooling
     )
     supports_eco = is_fc600 and (
@@ -231,75 +225,6 @@ def build_climate_capabilities(
     )
 
 
-def _numeric_value(value: Any) -> float | None:
-    """Return a numeric payload value, rejecting bools and non-numeric values."""
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, int | float):
-        return float(value)
-    return None
-
-
-def _temperature_from_x100(*values: Any) -> float | None:
-    """Return the first available x100 temperature value in Celsius."""
-    for value in values:
-        numeric_value = _numeric_value(value)
-        if numeric_value is not None:
-            return numeric_value / TEMPERATURE_SCALE
-    return None
-
-
-def _humidity_percent(raw_humidity: Any) -> float | None:
-    """Return SQ610 humidity as a percent, accepting raw percent and x100 forms."""
-    humidity = _numeric_value(raw_humidity)
-    if humidity is None:
-        return None
-
-    if humidity > 100:
-        humidity /= TEMPERATURE_SCALE
-
-    if 0 <= humidity <= 100:
-        return humidity
-
-    _LOGGER.warning("Ignoring implausible SQ610 humidity value: %s", raw_humidity)
-    return None
-
-
-def _current_temperature(
-    device: Any | None,
-    raw_props: Mapping[str, Any],
-) -> float | None:
-    """Return the best current-temperature value for a thermostat."""
-    if device is None:
-        return None
-
-    if is_sq610_device(device):
-        raw_temperature = _temperature_from_x100(
-            raw_props.get("LocalTemperature_x100"),
-            raw_props.get("MeasuredValue_x100"),
-        )
-        if raw_temperature is not None:
-            return raw_temperature
-
-    return getattr(device, "current_temperature", None)
-
-
-def _current_humidity(
-    device: Any | None,
-    raw_props: Mapping[str, Any],
-) -> float | None:
-    """Return the best current-humidity value for a thermostat."""
-    if device is None:
-        return None
-
-    if is_sq610_device(device):
-        raw_humidity = _humidity_percent(raw_props.get("SunnySetpoint_x100"))
-        if raw_humidity is not None:
-            return raw_humidity
-
-    return getattr(device, "current_humidity", None)
-
-
 def _normalize_hvac_action(action: Any) -> HVACAction | None:
     """Map library-specific strings to Home Assistant HVACAction values."""
     if isinstance(action, HVACAction):
@@ -317,22 +242,16 @@ def _normalize_hvac_action(action: Any) -> HVACAction | None:
     return None
 
 
-def _supports_cooling(device: Any | None, raw_props: Mapping[str, Any]) -> bool:
+def _supports_cooling(device: Any | None) -> bool:
     """Return whether the thermostat exposes a separate cooling mode."""
     if not device:
         return False
     if is_sq610_device(device):
-        # SQ610RF is heat-only; only report cooling if gateway confirms it
-        return (
-            raw_props.get("SystemMode") == SQ610_MODE_COOL
-            or raw_props.get("RunningState") == SQ610_RUNNING_COOL
-            or raw_props.get("CoolingSetpoint_x100") is not None
-        )
+        return bool(getattr(device, "supports_cooling", False))
     return bool(
         is_fc600_device(device)
         or HVACMode.COOL in (device.hvac_modes or [])
         or device.fan_modes is not None
-        or raw_props.get("CoolingSetpoint_x100") is not None
     )
 
 
@@ -362,7 +281,6 @@ def _build_hvac_modes(
 
 def _effective_hvac_mode(
     device: Any | None,
-    raw_props: Mapping[str, Any],
     capabilities: ClimateCapabilities,
 ) -> HVACMode:
     """Return the Salus system mode we want to expose in Home Assistant."""
@@ -370,9 +288,9 @@ def _effective_hvac_mode(
         return HVACMode.HEAT
 
     if capabilities.is_sq610:
-        hold_type = raw_props.get("HoldType")
-        system_mode = raw_props.get("SystemMode")
-        running_state = raw_props.get("RunningState")
+        hold_type = getattr(device, "hold_type", None)
+        system_mode = getattr(device, "system_mode", None)
+        running_state = getattr(device, "running_state", None)
         if hold_type == SQ610_HOLD_STANDBY:
             return HVACMode.OFF
         if system_mode == SQ610_MODE_COOL or running_state == SQ610_RUNNING_COOL:
@@ -417,7 +335,6 @@ def _effective_hvac_mode(
 
 def _effective_preset_mode(
     device: Any | None,
-    raw_props: Mapping[str, Any],
     capabilities: ClimateCapabilities,
     sq610_resume_preset_mode: str | None = None,
     fc600_resume_preset_mode: str | None = None,
@@ -429,7 +346,7 @@ def _effective_preset_mode(
         return None
 
     if capabilities.is_sq610:
-        hold_type = raw_props.get("HoldType")
+        hold_type = getattr(device, "hold_type", None)
         if hold_type == SQ610_HOLD_STANDBY:
             return None
         if hold_type == SQ610_HOLD_PERMANENT:
@@ -502,16 +419,15 @@ def _supported_features(
 
 def _hvac_action(
     device: Any | None,
-    raw_props: Mapping[str, Any],
 ) -> HVACAction | None:
     """Return the current HVAC action if supported."""
     if device is None:
         return None
 
     if is_sq610_device(device):
-        hold_type = raw_props.get("HoldType")
-        running_state = raw_props.get("RunningState")
-        system_mode = raw_props.get("SystemMode")
+        hold_type = getattr(device, "hold_type", None)
+        running_state = getattr(device, "running_state", None)
+        system_mode = getattr(device, "system_mode", None)
         if hold_type == SQ610_HOLD_STANDBY:
             return HVACAction.OFF
         if running_state == SQ610_RUNNING_HEAT:
@@ -530,26 +446,6 @@ def _hvac_action(
         return HVACAction.OFF
 
     return _normalize_hvac_action(device.hvac_action)
-
-
-def _target_temperature(
-    device: Any | None,
-    raw_props: Mapping[str, Any],
-    hvac_mode: HVACMode,
-) -> float | None:
-    """Return the temperature the thermostat tries to reach."""
-    if device is None:
-        return None
-
-    if is_sq610_device(device):
-        raw_value = (
-            raw_props.get("CoolingSetpoint_x100")
-            if hvac_mode == HVACMode.COOL
-            else raw_props.get("HeatingSetpoint_x100")
-        )
-        if raw_value is not None:
-            return raw_value / 100
-    return device.target_temperature
 
 
 def _fan_mode(device: Any | None) -> str | None:

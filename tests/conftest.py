@@ -90,7 +90,6 @@ class FakeCoordinator:
             switch_devices={},
             cover_devices={},
             sensor_devices={},
-            raw_climate_props={},
         )
 
     async def async_request_debounced_refresh(self) -> None:
@@ -124,6 +123,23 @@ def make_climate_device(
     fan_modes: list[str] | None = None,
     locked: bool | None = False,
     extra_state_attributes: dict | None = None,
+    hold_type: int | None = 2,
+    system_mode: int | None = 4,
+    running_state: int | None = 0,
+    heating_setpoint: float | None = 22.0,
+    cooling_setpoint: float | None = 22.0,
+    min_heat_temp: float | None = 5.0,
+    max_heat_temp: float | None = 35.0,
+    min_cool_temp: float | None = 5.0,
+    max_cool_temp: float | None = 35.0,
+    heating_control: int | None = 1,
+    cooling_control: int | None = 0,
+    supports_cooling: bool = True,
+    supports_fan: bool = False,
+    supports_heat: bool = True,
+    online_status: int | None = 1,
+    cooling_capability_source: str = "cooling_control",
+    diagnostic_fields: dict | None = None,
 ) -> SimpleNamespace:
     """Create a climate device SimpleNamespace."""
     return SimpleNamespace(
@@ -149,6 +165,23 @@ def make_climate_device(
         fan_modes=fan_modes,
         locked=locked,
         extra_state_attributes=extra_state_attributes,
+        hold_type=hold_type,
+        system_mode=system_mode,
+        running_state=running_state,
+        heating_setpoint=heating_setpoint,
+        cooling_setpoint=cooling_setpoint,
+        min_heat_temp=min_heat_temp,
+        max_heat_temp=max_heat_temp,
+        min_cool_temp=min_cool_temp,
+        max_cool_temp=max_cool_temp,
+        heating_control=heating_control,
+        cooling_control=cooling_control,
+        supports_cooling=supports_cooling,
+        supports_fan=supports_fan,
+        supports_heat=supports_heat,
+        online_status=online_status,
+        cooling_capability_source=cooling_capability_source,
+        diagnostic_fields=diagnostic_fields or {},
     )
 
 
@@ -165,6 +198,7 @@ def make_fc600_device(unique_id: str = "fc600-1", name: str = "Fan Coil") -> Sim
         fan_mode="Auto",
         fan_modes=["Auto", "High", "Medium", "Low", "Off"],
         locked=None,
+        supports_fan=True,
     )
 
 

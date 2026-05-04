@@ -21,7 +21,6 @@ def _coordinator_with_lockable_climate(device):
         switch_devices={},
         cover_devices={},
         sensor_devices={},
-        raw_climate_props={},
     )
     return FakeCoordinator(data=data)
 

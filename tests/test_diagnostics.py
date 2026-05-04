@@ -23,6 +23,27 @@ def _sq610_device() -> SimpleNamespace:
         name="Bedroom",
         model="SQ610RF",
         data={"UniID": "sq610-1"},
+        online_status=1,
+        hold_type=2,
+        system_mode=4,
+        running_state=0,
+        heating_setpoint=22.0,
+        cooling_setpoint=None,
+        min_heat_temp=5.0,
+        max_heat_temp=35.0,
+        min_cool_temp=None,
+        max_cool_temp=None,
+        heating_control=1,
+        cooling_control=0,
+        supports_cooling=True,
+        cooling_capability_source="cooling_control",
+        diagnostic_fields={
+            "OnlineStatus_i": 1,
+            "CoolingControl": 0,
+            "SystemMode": 4,
+            "LockKey": 1,
+            "LockKey_a": 1,
+        },
     )
 
 
@@ -47,22 +68,6 @@ class FakeGateway:
 
     def get_sensor_devices(self) -> dict[str, Any]:
         return {}
-
-    async def fetch_sq610_properties(
-        self, device_ids: list[str]
-    ) -> dict[str, dict[str, Any]]:
-        return {
-            device_ids[0]: {
-                "OnlineStatus_i": 1,
-                "LocalTemperature_x100": 2150,
-                "CoolingControl": 0,
-                "HeatingSetpoint_x100": 2200,
-                "SystemMode": 4,
-                "LockKey": 1,
-                "LockKey_a": 1,
-            }
-        }
-
 
 async def test_diagnostics_redacts_token_and_reports_health(hass: HomeAssistant) -> None:
     gateway = FakeGateway()
@@ -95,6 +100,9 @@ async def test_diagnostics_redacts_token_and_reports_health(hass: HomeAssistant)
     assert diagnostics["sq610"]["devices"]["sq610-1"]["support_fields"][
         "CoolingControl"
     ] == 0
+    assert diagnostics["sq610"]["devices"]["sq610-1"]["normalized_fields"][
+        "supports_cooling"
+    ] is True
 
 
 async def test_diagnostics_handles_unloaded_entry(hass: HomeAssistant) -> None:
