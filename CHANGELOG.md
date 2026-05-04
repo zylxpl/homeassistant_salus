@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 - 2026-05-04
 
 Normalized climate model:
 
+- Require `salus-it600-client 0.5.0`.
 - Consume normalized climate fields from `salus-it600-client` for SQ610, FC600,
   TRV, and standard thermostat state instead of doing a second raw SQ610 detail
   fetch during normal polling.
