@@ -13,6 +13,7 @@ from homeassistant.const import CONF_HOST, CONF_TOKEN
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+import custom_components.salus as salus_init
 from custom_components.salus import PLATFORMS, async_setup_entry
 from custom_components.salus.const import CONF_SCAN_INTERVAL, DOMAIN
 
@@ -70,8 +71,6 @@ def reset_fake_gateway():
 
 
 async def test_setup_entry_forwards_platforms(hass: HomeAssistant) -> None:
-    import custom_components.salus as salus_init
-
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_HOST: "192.0.2.10", CONF_TOKEN: "001E5E0D32906128"},
@@ -80,11 +79,13 @@ async def test_setup_entry_forwards_platforms(hass: HomeAssistant) -> None:
     entry.add_to_hass(hass)
     hass.data.setdefault(DOMAIN, {})
 
-    with patch.object(salus_init, "IT600Gateway", FakeGateway):
-        with patch.object(
+    with (
+        patch.object(salus_init, "IT600Gateway", FakeGateway),
+        patch.object(
             hass.config_entries, "async_forward_entry_setups", new_callable=AsyncMock
-        ) as mock_forward:
-            result = await async_setup_entry(hass, entry)
+        ) as mock_forward,
+    ):
+        result = await async_setup_entry(hass, entry)
 
     assert result is True
     mock_forward.assert_called_once_with(entry, PLATFORMS)
@@ -95,8 +96,6 @@ async def test_setup_entry_forwards_platforms(hass: HomeAssistant) -> None:
 async def test_setup_entry_uses_configured_scan_interval(
     hass: HomeAssistant,
 ) -> None:
-    import custom_components.salus as salus_init
-
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={CONF_HOST: "192.0.2.10", CONF_TOKEN: "001E5E0D32906128"},
@@ -106,11 +105,13 @@ async def test_setup_entry_uses_configured_scan_interval(
     entry.add_to_hass(hass)
     hass.data.setdefault(DOMAIN, {})
 
-    with patch.object(salus_init, "IT600Gateway", FakeGateway):
-        with patch.object(
+    with (
+        patch.object(salus_init, "IT600Gateway", FakeGateway),
+        patch.object(
             hass.config_entries, "async_forward_entry_setups", new_callable=AsyncMock
-        ):
-            result = await async_setup_entry(hass, entry)
+        ),
+    ):
+        result = await async_setup_entry(hass, entry)
 
     assert result is True
     assert entry.runtime_data.coordinator.update_interval == timedelta(seconds=45)

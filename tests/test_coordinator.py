@@ -23,7 +23,6 @@ from custom_components.salus.const import (
     CONF_SCAN_INTERVAL,
 )
 from custom_components.salus.coordinator import (
-    SalusData,
     SalusDataUpdateCoordinator,
 )
 
@@ -35,6 +34,8 @@ def _device(device_id: str, model: str = "SQ610RF") -> SimpleNamespace:
         name=device_id,
         model=model,
         data={"UniID": device_id},
+        online_status=1,
+        diagnostic_fields={"OnlineStatus_i": 1},
     )
 
 
@@ -47,10 +48,7 @@ class FakeGateway:
         self.switch_devices: dict[str, Any] = {}
         self.cover_devices: dict[str, Any] = {}
         self.sensor_devices: dict[str, Any] = {}
-        self.raw_props = {"sq610-1": {"SystemMode": 3, "OnlineStatus_i": 1}}
-        self.raw_fetch_ids: list[str] = []
         self.poll_error: Exception | None = None
-        self.raw_error: Exception | None = None
 
     async def poll_status(self) -> None:
         if self.poll_error is not None:
@@ -70,15 +68,6 @@ class FakeGateway:
 
     def get_sensor_devices(self) -> dict[str, Any]:
         return self.sensor_devices
-
-    async def fetch_sq610_properties(
-        self, device_ids: list[str]
-    ) -> dict[str, dict[str, Any]]:
-        self.raw_fetch_ids = device_ids
-        if self.raw_error is not None:
-            raise self.raw_error
-        return self.raw_props
-
 
 def _coordinator(
     hass: HomeAssistant,
@@ -125,8 +114,6 @@ async def test_update_data_populates_snapshot(hass: HomeAssistant) -> None:
     data = await coordinator._async_update_data()
 
     assert data.climate_devices == {"sq610-1": gateway.climate_devices["sq610-1"]}
-    assert data.raw_climate_props == {"sq610-1": {"SystemMode": 3, "OnlineStatus_i": 1}}
-    assert gateway.raw_fetch_ids == ["sq610-1"]
 
     health = coordinator.gateway_diagnostics()
     assert health["successful_updates"] == 1
@@ -192,33 +179,12 @@ async def test_zero_threshold_marks_unavailable_immediately(hass: HomeAssistant)
     assert coordinator.gateway_diagnostics()["consecutive_update_failures"] == 1
 
 
-async def test_raw_sq610_failure_uses_last_known_values(hass: HomeAssistant, caplog) -> None:
-    gateway = FakeGateway()
-    gateway.raw_error = IT600ConnectionError("offline")
-    coordinator = _coordinator(hass, gateway)
-    coordinator.data = SalusData(
-        climate_devices={},
-        binary_sensor_devices={},
-        switch_devices={},
-        cover_devices={},
-        sensor_devices={},
-        raw_climate_props={"sq610-1": {"SystemMode": 4}},
-    )
-
-    raw_props = await coordinator._async_fetch_raw_climate_props(gateway.climate_devices)
-
-    assert raw_props == {"sq610-1": {"SystemMode": 4}}
-    health = coordinator.gateway_diagnostics()
-    assert health["raw_sq610_fetch_failures"] == 1
-
-
 async def test_availability_history_tracks_missing_devices(hass: HomeAssistant) -> None:
     gateway = FakeGateway()
     coordinator = _coordinator(hass, gateway)
 
     await coordinator._async_update_data()
     gateway.climate_devices = {}
-    gateway.raw_props = {}
     await coordinator._async_update_data()
 
     device_health = coordinator.device_availability_diagnostics()["sq610-1"]

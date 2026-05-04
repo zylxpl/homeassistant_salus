@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import pytest
 from homeassistant.components.climate import ClimateEntityFeature, HVACAction, HVACMode
+from homeassistant.const import UnitOfTemperature
 from homeassistant.exceptions import HomeAssistantError
+from salus_it600.const import CURRENT_HVAC_COOL, CURRENT_HVAC_HEAT, CURRENT_HVAC_IDLE
 from salus_it600.device_models import (
     SQ610_HOLD_AUTO,
     SQ610_HOLD_PERMANENT,
     SQ610_HOLD_STANDBY,
     SQ610_MODE_COOL,
+    SQ610_RUNNING_COOL,
+    SQ610_RUNNING_HEAT,
 )
 from salus_it600.exceptions import IT600ConnectionError
 
@@ -29,17 +33,96 @@ from custom_components.salus.coordinator import SalusData
 from tests.conftest import FakeCoordinator, make_climate_device, make_fc600_device
 
 
-def _coordinator_with_climate(device, raw_props=None):
+def _normalized_sq610_device(device, fields):
+    """Return a fake SQ610 device with normalized client fields applied."""
+    if not fields:
+        return device
+
+    props = fields.get(device.unique_id, fields)
+    if "hold_type" in props:
+        device.hold_type = props["hold_type"]
+        device.preset_mode = (
+            RAW_PRESET_FOLLOW_SCHEDULE
+            if device.hold_type == SQ610_HOLD_AUTO
+            else RAW_PRESET_PERMANENT_HOLD
+            if device.hold_type == SQ610_HOLD_PERMANENT
+            else RAW_PRESET_OFF
+            if device.hold_type == SQ610_HOLD_STANDBY
+            else device.preset_mode
+        )
+    if "system_mode" in props:
+        device.system_mode = props["system_mode"]
+        device.hvac_mode = "cool" if device.system_mode == SQ610_MODE_COOL else "heat"
+    if "running_state" in props:
+        device.running_state = props["running_state"]
+        device.hvac_action = (
+            CURRENT_HVAC_COOL
+            if device.running_state == SQ610_RUNNING_COOL
+            else CURRENT_HVAC_HEAT
+            if device.running_state == SQ610_RUNNING_HEAT
+            else CURRENT_HVAC_IDLE
+        )
+    if "heating_setpoint" in props:
+        device.heating_setpoint = props["heating_setpoint"]
+    if "cooling_setpoint" in props:
+        device.cooling_setpoint = props["cooling_setpoint"]
+        device.supports_cooling = True
+    if "current_humidity" in props:
+        device.current_humidity = props["current_humidity"]
+    if device.system_mode == SQ610_MODE_COOL:
+        device.target_temperature = device.cooling_setpoint
+    else:
+        device.target_temperature = device.heating_setpoint
+    return device
+
+
+def _set_sq610_hold(device, hold_type: int) -> None:
+    """Update a fake SQ610 device hold state."""
+    device.hold_type = hold_type
+    device.preset_mode = (
+        RAW_PRESET_FOLLOW_SCHEDULE
+        if hold_type == SQ610_HOLD_AUTO
+        else RAW_PRESET_PERMANENT_HOLD
+        if hold_type == SQ610_HOLD_PERMANENT
+        else RAW_PRESET_OFF
+        if hold_type == SQ610_HOLD_STANDBY
+        else device.preset_mode
+    )
+
+
+def _coordinator_with_climate(device, normalized_fields=None):
     """Create a FakeCoordinator with one climate device."""
+    device = _normalized_sq610_device(device, normalized_fields)
     data = SalusData(
         climate_devices={device.unique_id: device},
         binary_sensor_devices={},
         switch_devices={},
         cover_devices={},
         sensor_devices={},
-        raw_climate_props=raw_props or {},
     )
     return FakeCoordinator(data=data)
+
+
+def _thermostat(device=None, normalized_fields=None):
+    """Create a thermostat entity with its fake device and coordinator."""
+    device = device or make_climate_device()
+    coord = _coordinator_with_climate(device, normalized_fields)
+    return device, coord, SalusThermostat(coord, device.unique_id)
+
+
+def _gateway_call(method, device, *args):
+    """Return one expected fake gateway call."""
+    return (method, device.unique_id, *args)
+
+
+def _fields(device, **values):
+    """Return normalized field overrides for one fake device."""
+    return {device.unique_id: values}
+
+
+def _assert_gateway_calls(coord, *calls) -> None:
+    """Assert exact fake gateway calls."""
+    assert coord.gateway.calls == list(calls)
 
 
 # ---------------------------------------------------------------------------
@@ -83,15 +166,15 @@ class TestSQ610Properties:
 
     def test_hvac_action(self):
         device = make_climate_device(hvac_action="heating")
-        raw_props = {device.unique_id: {"RunningState": 1, "SystemMode": 4}}
-        coord = _coordinator_with_climate(device, raw_props)
+        fields = {device.unique_id: {"running_state": 1, "system_mode": 4}}
+        coord = _coordinator_with_climate(device, fields)
         entity = SalusThermostat(coord, device.unique_id)
         assert entity.hvac_action == HVACAction.HEATING
 
     def test_hvac_action_idle(self):
         device = make_climate_device(hvac_action="idle")
-        raw_props = {device.unique_id: {"RunningState": 0, "SystemMode": 4}}
-        coord = _coordinator_with_climate(device, raw_props)
+        fields = {device.unique_id: {"running_state": 0, "system_mode": 4}}
+        coord = _coordinator_with_climate(device, fields)
         entity = SalusThermostat(coord, device.unique_id)
         assert entity.hvac_action == HVACAction.IDLE
 
@@ -108,8 +191,6 @@ class TestSQ610Properties:
         assert entity.current_humidity is None
 
     def test_temperature_unit(self):
-        from homeassistant.const import UnitOfTemperature
-
         device = make_climate_device(temperature_unit="°C")
         coord = _coordinator_with_climate(device)
         entity = SalusThermostat(coord, device.unique_id)
@@ -137,25 +218,25 @@ class TestSQ610Properties:
         entity = SalusThermostat(coord, device.unique_id)
         assert entity.locked is True
 
-    def test_extra_state_attributes_includes_raw_state(self):
+    def test_extra_state_attributes_includes_normalized_state(self):
         device = make_climate_device(
             hvac_mode="heat", preset_mode="Permanent Hold"
         )
-        raw_props = {
+        fields = {
             device.unique_id: {
-                "SystemMode": 4,
-                "RunningState": 1,
-                "HoldType": 2,
+                "system_mode": 4,
+                "running_state": 1,
+                "hold_type": 2,
             }
         }
-        coord = _coordinator_with_climate(device, raw_props)
+        coord = _coordinator_with_climate(device, fields)
         entity = SalusThermostat(coord, device.unique_id)
         attrs = entity.extra_state_attributes
-        assert attrs["salus_raw_hvac_mode"] == "heat"
-        assert attrs["salus_raw_preset_mode"] == "Permanent Hold"
-        assert attrs["salus_raw_system_mode"] == 4
-        assert attrs["salus_raw_running_state"] == 1
-        assert attrs["salus_raw_hold_type"] == 2
+        assert attrs["salus_hvac_mode"] == "heat"
+        assert attrs["salus_preset_mode"] == "Permanent Hold"
+        assert attrs["salus_system_mode"] == 4
+        assert attrs["salus_running_state"] == 1
+        assert attrs["salus_hold_type"] == 2
 
     def test_extra_state_attributes_with_valve_opening(self):
         device = make_climate_device(
@@ -244,35 +325,34 @@ class TestSQ610Commands:
     """Test SQ610 thermostat command forwarding."""
 
     async def test_set_temperature(self):
-        device = make_climate_device()
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
+        device, coord, entity = _thermostat()
+
         await entity.async_set_temperature(temperature=23.5)
-        assert coord.gateway.calls == [
-            ("set_sq610_temperature", device.unique_id, 23.5, False)
-        ]
+
+        _assert_gateway_calls(
+            coord,
+            _gateway_call("set_climate_temperature", device, 23.5),
+        )
         assert coord.refresh_requests == 1
 
     async def test_set_temperature_no_value_is_noop(self):
-        device = make_climate_device()
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
+        _, coord, entity = _thermostat()
+
         await entity.async_set_temperature()
+
         assert coord.gateway.calls == []
         assert coord.refresh_requests == 0
 
     async def test_set_temperature_while_standby_is_noop(self):
         device = make_climate_device()
-        coord = _coordinator_with_climate(
+        _, coord, entity = _thermostat(
             device,
-            {
-                device.unique_id: {
-                    "HoldType": SQ610_HOLD_STANDBY,
-                    "HeatingSetpoint_x100": 2100,
-                }
-            },
+            _fields(
+                device,
+                hold_type=SQ610_HOLD_STANDBY,
+                heating_setpoint=21.0,
+            ),
         )
-        entity = SalusThermostat(coord, device.unique_id)
 
         await entity.async_set_temperature(temperature=23.5)
 
@@ -281,341 +361,308 @@ class TestSQ610Commands:
 
     async def test_set_temperature_in_scheduled_cooling_uses_cooling_setpoint(self):
         device = make_climate_device()
-        coord = _coordinator_with_climate(
+        _, coord, entity = _thermostat(
             device,
-            {
-                device.unique_id: {
-                    "SystemMode": SQ610_MODE_COOL,
-                    "HoldType": SQ610_HOLD_AUTO,
-                    "CoolingSetpoint_x100": 2250,
-                    "HeatingSetpoint_x100": 2100,
-                }
-            },
+            _fields(
+                device,
+                system_mode=SQ610_MODE_COOL,
+                hold_type=SQ610_HOLD_AUTO,
+                cooling_setpoint=22.5,
+                heating_setpoint=21.0,
+            ),
         )
-        entity = SalusThermostat(coord, device.unique_id)
 
         assert entity.hvac_mode == HVACMode.COOL
         assert entity.preset_mode == PRESET_FOLLOW_SCHEDULE
 
         await entity.async_set_temperature(temperature=23.5)
 
-        assert coord.gateway.calls == [
-            ("set_sq610_temperature", device.unique_id, 23.5, True)
-        ]
+        _assert_gateway_calls(
+            coord,
+            _gateway_call("set_climate_temperature", device, 23.5),
+        )
         assert coord.refresh_requests == 1
 
-    async def test_set_hvac_mode_heat(self):
+    @pytest.mark.parametrize(
+        ("hvac_mode", "field_values", "expected_call"),
+        [
+            (
+                HVACMode.HEAT,
+                {},
+                ("set_climate_mode", HVACMode.HEAT),
+            ),
+            (
+                HVACMode.OFF,
+                {"hold_type": SQ610_HOLD_PERMANENT},
+                ("set_climate_preset", RAW_PRESET_OFF),
+            ),
+        ],
+    )
+    async def test_set_hvac_mode_simple_commands(
+        self,
+        hvac_mode,
+        field_values,
+        expected_call,
+    ):
         device = make_climate_device()
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
-        await entity.async_set_hvac_mode(HVACMode.HEAT)
-        assert coord.gateway.calls == [
-            ("set_sq610_hvac_mode", device.unique_id, HVACMode.HEAT)
-        ]
+        _, coord, entity = _thermostat(device, _fields(device, **field_values))
 
-    async def test_set_hvac_mode_off_uses_preset(self):
-        device = make_climate_device()
-        coord = _coordinator_with_climate(
-            device,
-            {
-                device.unique_id: {
-                    "HoldType": SQ610_HOLD_PERMANENT,
-                }
-            },
-        )
-        entity = SalusThermostat(coord, device.unique_id)
-        await entity.async_set_hvac_mode(HVACMode.OFF)
-        assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_OFF)
-        ]
+        await entity.async_set_hvac_mode(hvac_mode)
+
+        method, *args = expected_call
+        _assert_gateway_calls(coord, _gateway_call(method, device, *args))
 
     async def test_set_hvac_mode_auto_is_ignored_for_sq610(self):
-        device = make_climate_device()
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
+        _, coord, entity = _thermostat()
+
         await entity.async_set_hvac_mode(HVACMode.AUTO)
+
         assert coord.gateway.calls == []
 
     async def test_set_hvac_mode_heat_from_standby_restores_permanent_hold(self):
         device = make_climate_device()
-        coord = _coordinator_with_climate(
+        _, coord, entity = _thermostat(
             device,
-            {
-                device.unique_id: {
-                    "HoldType": SQ610_HOLD_PERMANENT,
-                }
-            },
+            _fields(device, hold_type=SQ610_HOLD_PERMANENT),
         )
-        entity = SalusThermostat(coord, device.unique_id)
 
         await entity.async_set_hvac_mode(HVACMode.OFF)
-        coord.data.raw_climate_props[device.unique_id] = {
-            "HoldType": SQ610_HOLD_STANDBY,
-        }
+        _set_sq610_hold(device, SQ610_HOLD_STANDBY)
         await entity.async_set_hvac_mode(HVACMode.HEAT)
 
-        assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_OFF),
-            ("set_sq610_hvac_mode", device.unique_id, HVACMode.HEAT),
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_PERMANENT_HOLD),
-        ]
+        _assert_gateway_calls(
+            coord,
+            _gateway_call("set_climate_preset", device, RAW_PRESET_OFF),
+            _gateway_call("set_climate_mode", device, HVACMode.HEAT),
+            _gateway_call("set_climate_preset", device, RAW_PRESET_PERMANENT_HOLD),
+        )
 
     async def test_set_hvac_mode_heat_from_standby_restores_follow_schedule(self):
         device = make_climate_device()
-        coord = _coordinator_with_climate(
+        _, coord, entity = _thermostat(
             device,
-            {
-                device.unique_id: {
-                    "SystemMode": SQ610_MODE_COOL,
-                    "HoldType": SQ610_HOLD_AUTO,
-                    "CoolingSetpoint_x100": 2250,
-                }
-            },
+            _fields(
+                device,
+                system_mode=SQ610_MODE_COOL,
+                hold_type=SQ610_HOLD_AUTO,
+                cooling_setpoint=22.5,
+            ),
         )
-        entity = SalusThermostat(coord, device.unique_id)
 
         await entity.async_set_hvac_mode(HVACMode.OFF)
-        coord.data.raw_climate_props[device.unique_id] = {
-            "HoldType": SQ610_HOLD_STANDBY,
-        }
+        _set_sq610_hold(device, SQ610_HOLD_STANDBY)
         await entity.async_set_hvac_mode(HVACMode.HEAT)
 
-        assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_OFF),
-            ("set_sq610_hvac_mode", device.unique_id, HVACMode.HEAT),
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE),
-        ]
+        _assert_gateway_calls(
+            coord,
+            _gateway_call("set_climate_preset", device, RAW_PRESET_OFF),
+            _gateway_call("set_climate_mode", device, HVACMode.HEAT),
+            _gateway_call("set_climate_preset", device, RAW_PRESET_FOLLOW_SCHEDULE),
+        )
 
     async def test_set_hvac_mode_heat_from_standby_without_memory_defaults_to_hold(
         self,
     ):
         device = make_climate_device()
-        coord = _coordinator_with_climate(
+        _, coord, entity = _thermostat(
             device,
-            {
-                device.unique_id: {
-                    "HoldType": SQ610_HOLD_STANDBY,
-                }
-            },
+            _fields(device, hold_type=SQ610_HOLD_STANDBY),
         )
-        entity = SalusThermostat(coord, device.unique_id)
 
         await entity.async_set_hvac_mode(HVACMode.HEAT)
 
-        assert coord.gateway.calls == [
-            ("set_sq610_hvac_mode", device.unique_id, HVACMode.HEAT),
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_PERMANENT_HOLD),
-        ]
+        _assert_gateway_calls(
+            coord,
+            _gateway_call("set_climate_mode", device, HVACMode.HEAT),
+            _gateway_call("set_climate_preset", device, RAW_PRESET_PERMANENT_HOLD),
+        )
 
     async def test_set_hvac_mode_while_scheduled_preserves_schedule(self):
         device = make_climate_device()
-        coord = _coordinator_with_climate(
+        _, coord, entity = _thermostat(
             device,
-            {
-                device.unique_id: {
-                    "SystemMode": SQ610_MODE_COOL,
-                    "HoldType": SQ610_HOLD_AUTO,
-                    "CoolingSetpoint_x100": 2250,
-                }
-            },
+            _fields(
+                device,
+                system_mode=SQ610_MODE_COOL,
+                hold_type=SQ610_HOLD_AUTO,
+                cooling_setpoint=22.5,
+            ),
         )
-        entity = SalusThermostat(coord, device.unique_id)
 
         await entity.async_set_hvac_mode(HVACMode.HEAT)
 
-        assert coord.gateway.calls == [
-            ("set_sq610_hvac_mode", device.unique_id, HVACMode.HEAT)
-        ]
+        _assert_gateway_calls(coord, _gateway_call("set_climate_mode", device, HVACMode.HEAT))
 
-    async def test_set_preset_follow_schedule(self):
-        device = make_climate_device()
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
-        await entity.async_set_preset_mode(PRESET_FOLLOW_SCHEDULE)
-        assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE)
-        ]
+    @pytest.mark.parametrize(
+        ("preset_mode", "raw_preset"),
+        [
+            (PRESET_FOLLOW_SCHEDULE, RAW_PRESET_FOLLOW_SCHEDULE),
+            (PRESET_PERMANENT_HOLD, RAW_PRESET_PERMANENT_HOLD),
+            (PRESET_STANDBY, RAW_PRESET_OFF),
+        ],
+    )
+    async def test_set_preset_modes(self, preset_mode, raw_preset):
+        device, coord, entity = _thermostat()
 
-    async def test_set_preset_permanent_hold(self):
-        device = make_climate_device()
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
-        await entity.async_set_preset_mode(PRESET_PERMANENT_HOLD)
-        assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_PERMANENT_HOLD)
-        ]
+        await entity.async_set_preset_mode(preset_mode)
 
-    async def test_set_preset_standby(self):
-        device = make_climate_device()
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
-        await entity.async_set_preset_mode(PRESET_STANDBY)
-        assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_OFF)
-        ]
+        _assert_gateway_calls(
+            coord,
+            _gateway_call("set_climate_preset", device, raw_preset),
+        )
 
     async def test_set_preset_while_standby_turns_on(self):
         device = make_climate_device()
-        coord = _coordinator_with_climate(
+        _, coord, entity = _thermostat(
             device,
-            {
-                device.unique_id: {
-                    "HoldType": SQ610_HOLD_STANDBY,
-                }
-            },
+            _fields(device, hold_type=SQ610_HOLD_STANDBY),
         )
-        entity = SalusThermostat(coord, device.unique_id)
 
         await entity.async_set_preset_mode(PRESET_FOLLOW_SCHEDULE)
 
-        assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE),
-        ]
+        _assert_gateway_calls(
+            coord,
+            _gateway_call("set_climate_preset", device, RAW_PRESET_FOLLOW_SCHEDULE),
+        )
 
     async def test_physical_preset_change_updates_resume_memory(self):
         device = make_climate_device()
-        coord = _coordinator_with_climate(
+        _, coord, entity = _thermostat(
             device,
-            {
-                device.unique_id: {
-                    "HoldType": SQ610_HOLD_PERMANENT,
-                }
-            },
+            _fields(device, hold_type=SQ610_HOLD_PERMANENT),
         )
-        entity = SalusThermostat(coord, device.unique_id)
 
         assert entity.preset_mode == PRESET_PERMANENT_HOLD
 
-        coord.data.raw_climate_props[device.unique_id] = {
-            "HoldType": SQ610_HOLD_AUTO,
-        }
+        _set_sq610_hold(device, SQ610_HOLD_AUTO)
 
         assert entity.preset_mode == PRESET_FOLLOW_SCHEDULE
 
         await entity.async_set_hvac_mode(HVACMode.OFF)
-        coord.data.raw_climate_props[device.unique_id] = {
-            "HoldType": SQ610_HOLD_STANDBY,
-        }
+        _set_sq610_hold(device, SQ610_HOLD_STANDBY)
         await entity.async_set_hvac_mode(HVACMode.HEAT)
 
-        assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_OFF),
-            ("set_sq610_hvac_mode", device.unique_id, HVACMode.HEAT),
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE),
-        ]
+        _assert_gateway_calls(
+            coord,
+            _gateway_call("set_climate_preset", device, RAW_PRESET_OFF),
+            _gateway_call("set_climate_mode", device, HVACMode.HEAT),
+            _gateway_call("set_climate_preset", device, RAW_PRESET_FOLLOW_SCHEDULE),
+        )
 
     async def test_unknown_hold_type_does_not_overwrite_resume_memory(self):
         device = make_climate_device()
-        coord = _coordinator_with_climate(
+        _, coord, entity = _thermostat(
             device,
-            {
-                device.unique_id: {
-                    "HoldType": SQ610_HOLD_AUTO,
-                }
-            },
+            _fields(device, hold_type=SQ610_HOLD_AUTO),
         )
-        entity = SalusThermostat(coord, device.unique_id)
 
         assert entity.preset_mode == PRESET_FOLLOW_SCHEDULE
 
-        coord.data.raw_climate_props[device.unique_id] = {
-            "HoldType": 99,
-        }
+        _set_sq610_hold(device, 99)
 
         assert entity.preset_mode == PRESET_FOLLOW_SCHEDULE
 
         await entity.async_set_hvac_mode(HVACMode.OFF)
-        coord.data.raw_climate_props[device.unique_id] = {
-            "HoldType": SQ610_HOLD_STANDBY,
-        }
+        _set_sq610_hold(device, SQ610_HOLD_STANDBY)
         await entity.async_set_hvac_mode(HVACMode.HEAT)
 
-        assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_OFF),
-            ("set_sq610_hvac_mode", device.unique_id, HVACMode.HEAT),
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE),
-        ]
+        _assert_gateway_calls(
+            coord,
+            _gateway_call("set_climate_preset", device, RAW_PRESET_OFF),
+            _gateway_call("set_climate_mode", device, HVACMode.HEAT),
+            _gateway_call("set_climate_preset", device, RAW_PRESET_FOLLOW_SCHEDULE),
+        )
 
     async def test_sq610_cooling_support_stays_available_after_sparse_payload(self):
         device = make_climate_device()
-        coord = _coordinator_with_climate(
+        _, _, entity = _thermostat(
             device,
-            {
-                device.unique_id: {
-                    "SystemMode": SQ610_MODE_COOL,
-                    "HoldType": SQ610_HOLD_AUTO,
-                    "CoolingSetpoint_x100": 2250,
-                }
-            },
+            _fields(
+                device,
+                system_mode=SQ610_MODE_COOL,
+                hold_type=SQ610_HOLD_AUTO,
+                cooling_setpoint=22.5,
+            ),
         )
-        entity = SalusThermostat(coord, device.unique_id)
 
         assert entity.hvac_modes == [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]
 
-        coord.data.raw_climate_props[device.unique_id] = {
-            "HoldType": SQ610_HOLD_AUTO,
-            "HeatingSetpoint_x100": 2100,
-        }
+        _set_sq610_hold(device, SQ610_HOLD_AUTO)
+        device.hvac_modes = ["heat"]
+        device.supports_cooling = False
 
         assert entity.hvac_modes == [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]
 
-    async def test_turn_off(self):
-        device = make_climate_device()
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
-        await entity.async_turn_off()
-        assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_OFF)
-        ]
+    @pytest.mark.parametrize(
+        "fields",
+        [
+            {"system_mode": SQ610_MODE_COOL},
+            {"running_state": SQ610_RUNNING_COOL},
+        ],
+    )
+    async def test_sq610_runtime_cooling_state_proves_cooling_support(self, fields):
+        device = make_climate_device(supports_cooling=False, hvac_modes=["heat"])
+        _, _, entity = _thermostat(
+            device,
+            _fields(
+                device,
+                hold_type=SQ610_HOLD_PERMANENT,
+                **fields,
+            ),
+        )
 
-    async def test_turn_on(self):
-        device = make_climate_device()
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
-        await entity.async_turn_on()
-        assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_PERMANENT_HOLD)
-        ]
+        assert entity.hvac_modes == [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]
+
+    @pytest.mark.parametrize(
+        ("method", "raw_preset"),
+        [
+            ("async_turn_off", RAW_PRESET_OFF),
+            ("async_turn_on", RAW_PRESET_PERMANENT_HOLD),
+        ],
+    )
+    async def test_turn_on_off_simple_commands(self, method, raw_preset):
+        device, coord, entity = _thermostat()
+
+        await getattr(entity, method)()
+
+        _assert_gateway_calls(
+            coord,
+            _gateway_call("set_climate_preset", device, raw_preset),
+        )
 
     async def test_turn_on_restores_remembered_schedule(self):
         device = make_climate_device()
-        coord = _coordinator_with_climate(
+        _, coord, entity = _thermostat(
             device,
-            {
-                device.unique_id: {
-                    "HoldType": SQ610_HOLD_AUTO,
-                }
-            },
+            _fields(device, hold_type=SQ610_HOLD_AUTO),
         )
-        entity = SalusThermostat(coord, device.unique_id)
 
         await entity.async_set_hvac_mode(HVACMode.OFF)
-        coord.data.raw_climate_props[device.unique_id] = {
-            "HoldType": SQ610_HOLD_STANDBY,
-        }
+        _set_sq610_hold(device, SQ610_HOLD_STANDBY)
         await entity.async_turn_on()
 
-        assert coord.gateway.calls == [
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_OFF),
-            ("set_sq610_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE),
-        ]
+        _assert_gateway_calls(
+            coord,
+            _gateway_call("set_climate_preset", device, RAW_PRESET_OFF),
+            _gateway_call("set_climate_preset", device, RAW_PRESET_FOLLOW_SCHEDULE),
+        )
 
     async def test_commands_trigger_refresh(self):
-        device = make_climate_device()
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
+        _, coord, entity = _thermostat()
+
         await entity.async_set_temperature(temperature=20.0)
         await entity.async_set_hvac_mode(HVACMode.HEAT)
         await entity.async_set_preset_mode(PRESET_FOLLOW_SCHEDULE)
+
         assert coord.refresh_requests == 3
 
     async def test_gateway_error_raises_home_assistant_error(self):
-        device = make_climate_device()
-        coord = _coordinator_with_climate(device)
+        _, coord, entity = _thermostat()
         coord.gateway.command_error = IT600ConnectionError("offline")
-        entity = SalusThermostat(coord, device.unique_id)
+
         with pytest.raises(HomeAssistantError, match="Failed to"):
             await entity.async_set_preset_mode(PRESET_FOLLOW_SCHEDULE)
+
         assert coord.gateway.calls == []
         assert coord.refresh_requests == 0
 
@@ -629,94 +676,81 @@ class TestFC600Commands:
     """Test FC600 fan-coil command forwarding."""
 
     async def test_set_fan_mode(self):
-        device = make_fc600_device()
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
+        device, coord, entity = _thermostat(make_fc600_device())
+
         await entity.async_set_fan_mode("high")
-        assert ("set_climate_fan_mode", device.unique_id, "High") in coord.gateway.calls
+
+        _assert_gateway_calls(coord, _gateway_call("set_climate_fan_mode", device, "High"))
 
     async def test_set_temperature_non_sq610(self):
-        device = make_fc600_device()
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
+        device, coord, entity = _thermostat(make_fc600_device())
+
         await entity.async_set_temperature(temperature=24.0)
-        assert ("set_climate_temperature", device.unique_id, 24.0) in coord.gateway.calls
+
+        _assert_gateway_calls(coord, _gateway_call("set_climate_temperature", device, 24.0))
 
     async def test_set_temperature_fc600_eco_is_noop(self):
         device = make_fc600_device()
         device.preset_mode = RAW_PRESET_ECO
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
+        _, coord, entity = _thermostat(device)
 
         await entity.async_set_temperature(temperature=24.0)
 
         assert coord.gateway.calls == []
         assert coord.refresh_requests == 0
 
-    async def test_set_preset_non_sq610(self):
-        device = make_fc600_device()
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
-        await entity.async_set_preset_mode(PRESET_FOLLOW_SCHEDULE)
-        assert (
-            "set_climate_preset",
-            device.unique_id,
-            RAW_PRESET_FOLLOW_SCHEDULE,
-        ) in coord.gateway.calls
+    @pytest.mark.parametrize(
+        ("preset_mode", "raw_preset"),
+        [
+            (PRESET_FOLLOW_SCHEDULE, RAW_PRESET_FOLLOW_SCHEDULE),
+            (PRESET_ECO, RAW_PRESET_ECO),
+        ],
+    )
+    async def test_set_preset_modes(self, preset_mode, raw_preset):
+        device, coord, entity = _thermostat(make_fc600_device())
 
-    async def test_set_preset_fc600_eco(self):
-        device = make_fc600_device()
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
+        await entity.async_set_preset_mode(preset_mode)
 
-        await entity.async_set_preset_mode(PRESET_ECO)
-
-        assert coord.gateway.calls == [
-            ("set_climate_preset", device.unique_id, RAW_PRESET_ECO),
-        ]
+        _assert_gateway_calls(coord, _gateway_call("set_climate_preset", device, raw_preset))
         assert coord.refresh_requests == 1
 
     async def test_set_hvac_mode_fc600_off_uses_preset(self):
         device = make_fc600_device()
         device.preset_mode = RAW_PRESET_FOLLOW_SCHEDULE
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
+        _, coord, entity = _thermostat(device)
 
         await entity.async_set_hvac_mode(HVACMode.OFF)
 
-        assert coord.gateway.calls == [
-            ("set_climate_preset", device.unique_id, RAW_PRESET_OFF),
-        ]
+        _assert_gateway_calls(coord, _gateway_call("set_climate_preset", device, RAW_PRESET_OFF))
         assert coord.refresh_requests == 1
 
-    async def test_set_hvac_mode_fc600_from_off_restores_eco(self):
+    @pytest.mark.parametrize("model", ["FC600", "FC600NH"])
+    async def test_set_hvac_mode_fc600_from_off_restores_eco(self, model):
         device = make_fc600_device()
+        device.model = model
         device.hvac_mode = "cool"
         device.preset_mode = RAW_PRESET_ECO
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
+        _, coord, entity = _thermostat(device)
 
         await entity.async_set_hvac_mode(HVACMode.OFF)
         device.preset_mode = RAW_PRESET_OFF
         await entity.async_set_hvac_mode(HVACMode.HEAT)
 
-        assert coord.gateway.calls == [
-            ("set_climate_preset", device.unique_id, RAW_PRESET_OFF),
-            ("set_climate_mode", device.unique_id, HVACMode.HEAT),
-            ("set_climate_preset", device.unique_id, RAW_PRESET_ECO),
-        ]
+        _assert_gateway_calls(
+            coord,
+            _gateway_call("set_climate_preset", device, RAW_PRESET_OFF),
+            _gateway_call("set_climate_mode", device, HVACMode.HEAT),
+            _gateway_call("set_climate_preset", device, RAW_PRESET_ECO),
+        )
 
     async def test_set_preset_fc600_while_off_turns_on(self):
         device = make_fc600_device()
         device.preset_mode = RAW_PRESET_OFF
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
+        _, coord, entity = _thermostat(device)
 
         await entity.async_set_preset_mode(PRESET_ECO)
 
-        assert coord.gateway.calls == [
-            ("set_climate_preset", device.unique_id, RAW_PRESET_ECO),
-        ]
+        _assert_gateway_calls(coord, _gateway_call("set_climate_preset", device, RAW_PRESET_ECO))
 
     async def test_standard_heat_only_device_uses_single_hvac_menu(self):
         device = make_climate_device(
@@ -724,8 +758,7 @@ class TestFC600Commands:
             hvac_modes=["heat"],
             preset_mode="Follow Schedule",
         )
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
+        _, coord, entity = _thermostat(device)
 
         assert entity.hvac_mode == HVACMode.AUTO
         assert entity.hvac_modes == [HVACMode.OFF, HVACMode.HEAT, HVACMode.AUTO]
@@ -734,39 +767,36 @@ class TestFC600Commands:
 
         await entity.async_set_hvac_mode(HVACMode.AUTO)
 
-        assert coord.gateway.calls == [
-            ("set_climate_preset", device.unique_id, RAW_PRESET_FOLLOW_SCHEDULE)
-        ]
+        _assert_gateway_calls(
+            coord,
+            _gateway_call("set_climate_preset", device, RAW_PRESET_FOLLOW_SCHEDULE),
+        )
         assert coord.refresh_requests == 1
 
-    async def test_standard_heat_only_heat_mode_sets_permanent_hold(self):
+    @pytest.mark.parametrize(
+        ("preset_mode", "hvac_mode", "raw_preset"),
+        [
+            ("Follow Schedule", HVACMode.HEAT, RAW_PRESET_PERMANENT_HOLD),
+            ("Permanent Hold", HVACMode.OFF, RAW_PRESET_OFF),
+        ],
+    )
+    async def test_standard_heat_only_mode_sets_preset(
+        self,
+        preset_mode,
+        hvac_mode,
+        raw_preset,
+    ):
         device = make_climate_device(
             model="HTRP-RF(50)",
             hvac_modes=["heat"],
-            preset_mode="Follow Schedule",
+            preset_mode=preset_mode,
         )
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
+        _, coord, entity = _thermostat(device)
 
-        await entity.async_set_hvac_mode(HVACMode.HEAT)
+        await entity.async_set_hvac_mode(hvac_mode)
 
-        assert coord.gateway.calls == [
-            ("set_climate_preset", device.unique_id, RAW_PRESET_PERMANENT_HOLD)
-        ]
-        assert coord.refresh_requests == 1
-
-    async def test_standard_heat_only_off_mode_sets_off_preset(self):
-        device = make_climate_device(
-            model="HTRP-RF(50)",
-            hvac_modes=["heat"],
-            preset_mode="Permanent Hold",
+        _assert_gateway_calls(
+            coord,
+            _gateway_call("set_climate_preset", device, raw_preset),
         )
-        coord = _coordinator_with_climate(device)
-        entity = SalusThermostat(coord, device.unique_id)
-
-        await entity.async_set_hvac_mode(HVACMode.OFF)
-
-        assert coord.gateway.calls == [
-            ("set_climate_preset", device.unique_id, RAW_PRESET_OFF)
-        ]
         assert coord.refresh_requests == 1

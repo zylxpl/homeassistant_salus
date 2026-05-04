@@ -9,8 +9,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 
-from .coordinator import SalusData, SalusRuntimeData
-from .entity import SalusEntity, async_add_salus_entities
+from .entity import SalusEntity, async_setup_salus_platform_entities
 
 PARALLEL_UPDATES = 0
 
@@ -29,14 +28,10 @@ async def async_setup_entry(
     async_add_entities,
 ) -> None:
     """Set up Salus sensors from a config entry."""
-    runtime_data: SalusRuntimeData = config_entry.runtime_data
-    coordinator = runtime_data.coordinator
-
-    async_add_salus_entities(
+    async_setup_salus_platform_entities(
         config_entry,
-        coordinator,
         async_add_entities,
-        lambda device_id: SalusSensor(coordinator, device_id),
+        SalusSensor,
         lambda data: data.sensor_devices,
     )
 
@@ -44,11 +39,7 @@ async def async_setup_entry(
 class SalusSensor(SalusEntity, SensorEntity):
     """Representation of a Salus sensor."""
 
-    @property
-    def _device(self) -> Any | None:
-        """Return the current sensor snapshot."""
-        data: SalusData | None = self.coordinator.data
-        return None if data is None else data.sensor_devices.get(self._device_id)
+    _data_collection = "sensor_devices"
 
     def _device_info_unique_id(self, device: Any) -> str:
         """Group primary standalone sensors under their physical Salus device."""
@@ -62,12 +53,12 @@ class SalusSensor(SalusEntity, SensorEntity):
     @property
     def native_value(self) -> Any:
         """Return the sensor value."""
-        return None if self._device is None else self._device.state
+        return self._device_attr("state")
 
     @property
     def native_unit_of_measurement(self) -> str | None:
         """Return the unit of measurement of this entity, if any."""
-        return None if self._device is None else self._device.unit_of_measurement
+        return self._device_attr("unit_of_measurement")
 
     @property
     def state_class(self) -> SensorStateClass | None:
@@ -79,7 +70,7 @@ class SalusSensor(SalusEntity, SensorEntity):
     @property
     def device_class(self) -> str | None:
         """Return the device class of the sensor."""
-        return None if self._device is None else self._device.device_class
+        return self._device_attr("device_class")
 
     @property
     def entity_category(self) -> EntityCategory | None:

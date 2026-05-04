@@ -8,8 +8,7 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
-from .coordinator import SalusData, SalusRuntimeData
-from .entity import SalusEntity, async_add_salus_entities
+from .entity import SalusEntity, async_setup_salus_platform_entities
 
 PARALLEL_UPDATES = 1
 
@@ -22,14 +21,10 @@ async def async_setup_entry(
     async_add_entities,
 ) -> None:
     """Set up Salus switches from a config entry."""
-    runtime_data: SalusRuntimeData = config_entry.runtime_data
-    coordinator = runtime_data.coordinator
-
-    async_add_salus_entities(
+    async_setup_salus_platform_entities(
         config_entry,
-        coordinator,
         async_add_entities,
-        lambda device_id: SalusSwitch(coordinator, device_id),
+        SalusSwitch,
         lambda data: data.switch_devices,
     )
 
@@ -37,11 +32,7 @@ async def async_setup_entry(
 class SalusSwitch(SalusEntity, SwitchEntity):
     """Representation of a Salus switch."""
 
-    @property
-    def _device(self) -> Any | None:
-        """Return the current switch snapshot."""
-        data: SalusData | None = self.coordinator.data
-        return None if data is None else data.switch_devices.get(self._device_id)
+    _data_collection = "switch_devices"
 
     def _device_info_unique_id(self, device: Any) -> str:
         """Group RS600/SR600 relay endpoints under their physical device."""
@@ -56,7 +47,7 @@ class SalusSwitch(SalusEntity, SwitchEntity):
         if getattr(device, "model", None) in MULTIFUNCTION_SWITCH_MODELS:
             return unique_id
 
-        data: SalusData | None = self.coordinator.data
+        data = self.coordinator.data
         if data is not None and unique_id in data.cover_devices:
             return unique_id
 
@@ -65,25 +56,23 @@ class SalusSwitch(SalusEntity, SwitchEntity):
     @property
     def device_class(self) -> str | None:
         """Return the device class of the switch."""
-        return None if self._device is None else self._device.device_class
+        return self._device_attr("device_class")
 
     @property
     def is_on(self) -> bool | None:
         """Return true if the switch is on."""
-        return None if self._device is None else self._device.is_on
+        return self._device_attr("is_on")
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on."""
-        await self._async_run_gateway_command(
+        await self._async_run_gateway_command_and_refresh(
             "turn on switch",
             lambda: self.coordinator.gateway.turn_on_switch_device(self._device_id),
         )
-        await self.coordinator.async_request_debounced_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off."""
-        await self._async_run_gateway_command(
+        await self._async_run_gateway_command_and_refresh(
             "turn off switch",
             lambda: self.coordinator.gateway.turn_off_switch_device(self._device_id),
         )
-        await self.coordinator.async_request_debounced_refresh()

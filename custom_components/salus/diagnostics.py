@@ -14,7 +14,7 @@ from .coordinator import SalusData, SalusRuntimeData
 
 TO_REDACT = {CONF_TOKEN}
 
-SQ610_SUPPORT_FIELDS = (
+CLIMATE_SUPPORT_FIELDS = (
     "UniID",
     "DeviceName",
     "ModelIdentifier_i",
@@ -22,8 +22,14 @@ SQ610_SUPPORT_FIELDS = (
     "FirmwareVersion",
     "LocalTemperature_x100",
     "MeasuredValue_x100",
+    "HeatingControl",
+    "CoolingControl",
     "HeatingSetpoint_x100",
     "CoolingSetpoint_x100",
+    "MinHeatSetpoint_x100",
+    "MaxHeatSetpoint_x100",
+    "MinCoolSetpoint_x100",
+    "MaxCoolSetpoint_x100",
     "SunnySetpoint_x100",
     "SystemMode",
     "RunningState",
@@ -31,6 +37,38 @@ SQ610_SUPPORT_FIELDS = (
     "LockKey",
     "LockKey_a",
 )
+CLIMATE_NORMALIZED_FIELDS = (
+    "current_temperature",
+    "current_humidity",
+    "target_temperature",
+    "min_temp",
+    "max_temp",
+    "hvac_mode",
+    "hvac_action",
+    "preset_mode",
+    "fan_mode",
+    "online_status",
+    "hold_type",
+    "system_mode",
+    "running_state",
+    "heating_setpoint",
+    "cooling_setpoint",
+    "min_heat_temp",
+    "max_heat_temp",
+    "min_cool_temp",
+    "max_cool_temp",
+    "heating_control",
+    "cooling_control",
+    "supports_cooling",
+    "supports_fan",
+    "supports_heat",
+    "cooling_capability_source",
+)
+CLIMATE_NORMALIZED_SEQUENCE_FIELDS = (
+    "hvac_modes",
+    "preset_modes",
+)
+CLIMATE_NORMALIZED_OPTIONAL_SEQUENCE_FIELDS = ("fan_modes",)
 
 
 async def async_get_config_entry_diagnostics(
@@ -65,7 +103,7 @@ async def async_get_config_entry_diagnostics(
             },
             "device_counts": _device_counts(data),
             "device_availability": coordinator.device_availability_diagnostics(),
-            "sq610": _sq610_diagnostics(data),
+            "climate": _climate_diagnostics(data),
         }
     )
     return diagnostics
@@ -98,21 +136,48 @@ def _device_counts(data: SalusData | None) -> dict[str, int]:
     }
 
 
-def _sq610_diagnostics(data: SalusData | None) -> dict[str, Any]:
-    """Return SQ610 raw-property diagnostics useful for field support."""
+def _climate_diagnostics(data: SalusData | None) -> dict[str, Any]:
+    """Return normalized climate diagnostics useful for field support."""
     if data is None:
         return {"devices": {}}
 
     devices: dict[str, Any] = {}
-    for device_id, raw_props in sorted(data.raw_climate_props.items()):
+    for device_id, device in sorted(data.climate_devices.items()):
+        diagnostic_fields = getattr(device, "diagnostic_fields", None)
+        if not isinstance(diagnostic_fields, dict):
+            diagnostic_fields = {}
+
         devices[device_id] = {
-            "field_count": len(raw_props),
-            "present_fields": sorted(raw_props),
+            "model": getattr(device, "model", None),
+            "available": getattr(device, "available", None),
+            "field_count": len(diagnostic_fields),
+            "present_fields": sorted(diagnostic_fields),
+            "normalized_fields": _normalized_climate_fields(device),
             "support_fields": {
-                field: raw_props.get(field)
-                for field in SQ610_SUPPORT_FIELDS
-                if field in raw_props
+                field: diagnostic_fields.get(field)
+                for field in CLIMATE_SUPPORT_FIELDS
+                if field in diagnostic_fields
             },
         }
 
     return {"devices": devices}
+
+
+def _normalized_climate_fields(device: Any) -> dict[str, Any]:
+    """Return normalized climate fields for diagnostics."""
+    fields = {field: getattr(device, field, None) for field in CLIMATE_NORMALIZED_FIELDS}
+    fields.update(
+        {
+            field: list(getattr(device, field, None) or [])
+            for field in CLIMATE_NORMALIZED_SEQUENCE_FIELDS
+        }
+    )
+    fields.update(
+        {
+            field: None
+            if getattr(device, field, None) is None
+            else list(getattr(device, field, None) or [])
+            for field in CLIMATE_NORMALIZED_OPTIONAL_SEQUENCE_FIELDS
+        }
+    )
+    return fields

@@ -66,17 +66,6 @@ class FakeGateway:
     async def set_climate_device_fan_mode(self, device_id: str, mode: str) -> None:
         self._record("set_climate_fan_mode", device_id, mode)
 
-    async def set_sq610_device_temperature(
-        self, device_id: str, setpoint_celsius: float, *, cooling: bool = False
-    ) -> None:
-        self._record("set_sq610_temperature", device_id, setpoint_celsius, cooling)
-
-    async def set_sq610_device_hvac_mode(self, device_id: str, mode: str) -> None:
-        self._record("set_sq610_hvac_mode", device_id, mode)
-
-    async def set_sq610_device_preset(self, device_id: str, preset: str) -> None:
-        self._record("set_sq610_preset", device_id, preset)
-
 
 class FakeCoordinator:
     """Minimal coordinator fake for entity unit tests.
@@ -101,7 +90,6 @@ class FakeCoordinator:
             switch_devices={},
             cover_devices={},
             sensor_devices={},
-            raw_climate_props={},
         )
 
     async def async_request_debounced_refresh(self) -> None:
@@ -111,6 +99,18 @@ class FakeCoordinator:
 # ---------------------------------------------------------------------------
 # Device fixture factories
 # ---------------------------------------------------------------------------
+
+
+def _device_base(unique_id, name, *, model, available=True, **values):
+    return SimpleNamespace(
+        available=available,
+        unique_id=unique_id,
+        name=name,
+        manufacturer="SALUS",
+        model=model,
+        sw_version=None,
+        **values,
+    )
 
 
 def make_climate_device(
@@ -135,15 +135,27 @@ def make_climate_device(
     fan_modes: list[str] | None = None,
     locked: bool | None = False,
     extra_state_attributes: dict | None = None,
+    hold_type: int | None = 2,
+    system_mode: int | None = 4,
+    running_state: int | None = 0,
+    heating_setpoint: float | None = 22.0,
+    cooling_setpoint: float | None = 22.0,
+    min_heat_temp: float | None = 5.0,
+    max_heat_temp: float | None = 35.0,
+    min_cool_temp: float | None = 5.0,
+    max_cool_temp: float | None = 35.0,
+    heating_control: int | None = 1,
+    cooling_control: int | None = 0,
+    supports_cooling: bool = True,
+    supports_fan: bool = False,
+    supports_heat: bool = True,
+    online_status: int | None = 1,
+    cooling_capability_source: str = "cooling_control",
+    diagnostic_fields: dict | None = None,
 ) -> SimpleNamespace:
     """Create a climate device SimpleNamespace."""
-    return SimpleNamespace(
-        available=available,
-        unique_id=unique_id,
-        name=name,
-        manufacturer="SALUS",
-        model=model,
-        sw_version=None,
+    return _device_base(
+        unique_id, name, model=model, available=available,
         temperature_unit=temperature_unit,
         precision=precision,
         current_temperature=current_temperature,
@@ -160,6 +172,23 @@ def make_climate_device(
         fan_modes=fan_modes,
         locked=locked,
         extra_state_attributes=extra_state_attributes,
+        hold_type=hold_type,
+        system_mode=system_mode,
+        running_state=running_state,
+        heating_setpoint=heating_setpoint,
+        cooling_setpoint=cooling_setpoint,
+        min_heat_temp=min_heat_temp,
+        max_heat_temp=max_heat_temp,
+        min_cool_temp=min_cool_temp,
+        max_cool_temp=max_cool_temp,
+        heating_control=heating_control,
+        cooling_control=cooling_control,
+        supports_cooling=supports_cooling,
+        supports_fan=supports_fan,
+        supports_heat=supports_heat,
+        online_status=online_status,
+        cooling_capability_source=cooling_capability_source,
+        diagnostic_fields=diagnostic_fields or {},
     )
 
 
@@ -176,6 +205,7 @@ def make_fc600_device(unique_id: str = "fc600-1", name: str = "Fan Coil") -> Sim
         fan_mode="Auto",
         fan_modes=["Auto", "High", "Medium", "Low", "Off"],
         locked=None,
+        supports_fan=True,
     )
 
 
@@ -190,13 +220,8 @@ def make_switch_device(
     data: dict | None = None,
 ) -> SimpleNamespace:
     """Create a switch device SimpleNamespace."""
-    return SimpleNamespace(
-        available=available,
-        unique_id=unique_id,
-        name=name,
-        manufacturer="SALUS",
-        model=model,
-        sw_version=None,
+    return _device_base(
+        unique_id, name, model=model, available=available,
         device_class=device_class,
         is_on=is_on,
         data=data or {"UniID": unique_id, "Endpoint": 1},
@@ -217,13 +242,8 @@ def make_cover_device(
     available: bool = True,
 ) -> SimpleNamespace:
     """Create a cover device SimpleNamespace."""
-    return SimpleNamespace(
-        available=available,
-        unique_id=unique_id,
-        name=name,
-        manufacturer="SALUS",
-        model=model,
-        sw_version=None,
+    return _device_base(
+        unique_id, name, model=model, available=available,
         supported_features=supported_features,
         device_class=device_class,
         current_cover_position=current_cover_position,
@@ -246,13 +266,8 @@ def make_binary_sensor_device(
     available: bool = True,
 ) -> SimpleNamespace:
     """Create a binary sensor device SimpleNamespace."""
-    return SimpleNamespace(
-        available=available,
-        unique_id=unique_id,
-        name=name,
-        manufacturer="SALUS",
-        model=model,
-        sw_version=None,
+    return _device_base(
+        unique_id, name, model=model, available=available,
         is_on=is_on,
         device_class=device_class,
         parent_unique_id=parent_unique_id,
@@ -275,13 +290,8 @@ def make_sensor_device(
     data: dict | None = None,
 ) -> SimpleNamespace:
     """Create a sensor device SimpleNamespace."""
-    return SimpleNamespace(
-        available=available,
-        unique_id=unique_id,
-        name=name,
-        manufacturer="SALUS",
-        model=model,
-        sw_version=None,
+    return _device_base(
+        unique_id, name, model=model, available=available,
         state=state,
         unit_of_measurement=unit_of_measurement,
         device_class=device_class,

@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+Normalized climate model:
+
+- Consume normalized climate fields from `salus-it600-client` for SQ610, FC600,
+  TRV, and standard thermostat state instead of doing a second raw SQ610 detail
+  fetch during normal polling.
+- Keep heat/cool target temperature and active range selection aligned with the
+  normalized client model, including cooling states proven by running state.
+- Report climate diagnostics through one shared climate-device diagnostics
+  shape, with normalized fields and whitelisted support fields for every
+  thermostat family.
+
 ## 0.7.22 - 2026-05-03
 
 Bug fixes:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from typing import Any
 
+import pytest
 from homeassistant.components.climate.const import (
     ClimateEntityFeature,
     HVACAction,
@@ -40,6 +41,11 @@ from custom_components.salus._climate_state import (
     build_climate_view_state,
 )
 
+TURN_ON_OFF_FEATURES = (
+    getattr(ClimateEntityFeature, "TURN_ON", ClimateEntityFeature(0))
+    | getattr(ClimateEntityFeature, "TURN_OFF", ClimateEntityFeature(0))
+)
+
 
 def _device(**overrides: Any) -> SimpleNamespace:
     values = {
@@ -58,280 +64,302 @@ def _device(**overrides: Any) -> SimpleNamespace:
         "target_temperature": 21.0,
         "fan_mode": None,
         "fan_modes": None,
+        "hold_type": None,
+        "system_mode": None,
+        "running_state": None,
+        "heating_setpoint": None,
+        "cooling_setpoint": None,
+        "supports_cooling": False,
     }
     values.update(overrides)
     return SimpleNamespace(**values)
 
 
-def test_sq610_cooling_uses_raw_cooling_setpoint() -> None:
-    state = build_climate_view_state(
-        _device(model="SQ610RF"),
+def _state(device_overrides: dict[str, Any] | None = None, **state_kwargs: Any):
+    return build_climate_view_state(_device(**(device_overrides or {})), **state_kwargs)
+
+
+def _attrs(state, *attrs: str) -> tuple[Any, ...]:
+    return tuple(getattr(state, attr) for attr in attrs)
+
+
+SQ610_COOLING = {
+    "model": "SQ610RF",
+    "system_mode": SQ610_MODE_COOL,
+    "running_state": SQ610_RUNNING_COOL,
+    "cooling_setpoint": 22.5,
+    "heating_setpoint": 21.0,
+    "target_temperature": 22.5,
+    "supports_cooling": True,
+}
+
+
+@pytest.mark.parametrize(
+    ("device_overrides", "state_kwargs", "attrs", "expected"),
+    [
+        pytest.param(
+            {**SQ610_COOLING, "hold_type": SQ610_HOLD_PERMANENT},
+            {},
+            (
+                "supports_cooling",
+                "hvac_modes",
+                "hvac_mode",
+                "hvac_action",
+                "target_temperature",
+                "preset_mode",
+                "preset_modes",
+            ),
+            (
+                True,
+                [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL],
+                HVACMode.COOL,
+                HVACAction.COOLING,
+                22.5,
+                PRESET_PERMANENT_HOLD,
+                [PRESET_PERMANENT_HOLD, PRESET_FOLLOW_SCHEDULE],
+            ),
+            id="sq610_cooling_setpoint",
+        ),
+        pytest.param(
+            {**SQ610_COOLING, "hold_type": SQ610_HOLD_AUTO},
+            {},
+            ("hvac_mode", "target_temperature", "preset_mode"),
+            (HVACMode.COOL, 22.5, PRESET_FOLLOW_SCHEDULE),
+            id="sq610_auto_cooling",
+        ),
+        pytest.param(
+            {
+                **SQ610_COOLING,
+                "system_mode": SQ610_MODE_HEAT,
+                "running_state": SQ610_RUNNING_HEAT,
+                "target_temperature": 21.0,
+                "hold_type": SQ610_HOLD_AUTO,
+            },
+            {},
+            ("hvac_mode", "target_temperature", "preset_mode"),
+            (HVACMode.HEAT, 21.0, PRESET_FOLLOW_SCHEDULE),
+            id="sq610_auto_heating",
+        ),
+        pytest.param(
+            {
+                "model": "SQ610RF",
+                "current_temperature": 22.35,
+                "hold_type": SQ610_HOLD_PERMANENT,
+                "heating_setpoint": 21.0,
+            },
+            {},
+            ("current_temperature",),
+            (22.35,),
+            id="sq610_current_temperature",
+        ),
+        pytest.param(
+            {
+                "model": "SQ610RF",
+                "current_humidity": 63.0,
+                "hold_type": SQ610_HOLD_PERMANENT,
+                "heating_setpoint": 21.0,
+            },
+            {},
+            ("current_humidity",),
+            (63.0,),
+            id="sq610_humidity_percent",
+        ),
+        pytest.param(
+            {
+                "model": "SQ610RF",
+                "current_humidity": 45.5,
+                "hold_type": SQ610_HOLD_PERMANENT,
+                "heating_setpoint": 21.0,
+            },
+            {},
+            ("current_humidity",),
+            (45.5,),
+            id="sq610_humidity_fractional",
+        ),
+        pytest.param(
+            {
+                "model": "SQ610RF",
+                "running_state": SQ610_RUNNING_HEAT,
+                "hold_type": SQ610_HOLD_STANDBY,
+                "heating_setpoint": 21.0,
+            },
+            {},
+            ("hvac_mode", "hvac_action", "preset_mode"),
+            (HVACMode.OFF, HVACAction.OFF, None),
+            id="sq610_standby",
+        ),
+        pytest.param(
+            {
+                "model": "SQ610RF",
+                "running_state": SQ610_RUNNING_HEAT,
+                "hold_type": SQ610_HOLD_STANDBY,
+                "heating_setpoint": 21.0,
+            },
+            {"sq610_resume_preset_mode": PRESET_FOLLOW_SCHEDULE},
+            ("hvac_mode", "preset_mode"),
+            (HVACMode.OFF, None),
+            id="sq610_standby_hides_resume",
+        ),
+        pytest.param(
+            {"model": "SQ610RF", "hold_type": 99, "heating_setpoint": 21.0},
+            {"sq610_resume_preset_mode": PRESET_FOLLOW_SCHEDULE},
+            ("preset_mode",),
+            (PRESET_FOLLOW_SCHEDULE,),
+            id="sq610_unknown_hold_uses_resume",
+        ),
+        pytest.param(
+            {
+                "model": "SQ610RF",
+                "hold_type": SQ610_HOLD_AUTO,
+                "heating_setpoint": 21.0,
+            },
+            {},
+            ("hvac_mode", "preset_mode"),
+            (HVACMode.HEAT, PRESET_FOLLOW_SCHEDULE),
+            id="sq610_auto_without_system_state",
+        ),
+        pytest.param(
+            {
+                "model": "SQ610RF",
+                "hold_type": SQ610_HOLD_PERMANENT,
+                "heating_setpoint": 21.0,
+                "supports_cooling": False,
+            },
+            {},
+            ("hvac_modes", "supports_cooling"),
+            ([HVACMode.OFF, HVACMode.HEAT], False),
+            id="sq610_heat_only",
+        ),
+        pytest.param(
+            {
+                "model": "SQ610RF",
+                "hold_type": SQ610_HOLD_PERMANENT,
+                "heating_setpoint": 21.0,
+                "supports_cooling": False,
+            },
+            {"sq610_known_supports_cooling": True},
+            ("supports_cooling", "hvac_modes"),
+            (True, [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]),
+            id="sq610_remembers_cooling_support",
+        ),
+    ],
+)
+def test_sq610_view_state_cases(device_overrides, state_kwargs, attrs, expected) -> None:
+    assert _attrs(_state(device_overrides, **state_kwargs), *attrs) == expected
+
+
+@pytest.mark.parametrize(
+    ("device_overrides", "attrs", "expected"),
+    [
+        pytest.param(
+            {"preset_mode": PRESET_OFF},
+            ("hvac_mode", "hvac_action", "hvac_modes", "preset_mode", "preset_modes"),
+            (
+                HVACMode.OFF,
+                HVACAction.OFF,
+                [HVACMode.OFF, HVACMode.HEAT, HVACMode.AUTO],
+                None,
+                [],
+            ),
+            id="standard_off",
+        ),
+        pytest.param(
+            {},
+            ("hvac_mode", "hvac_modes", "preset_mode", "preset_modes"),
+            (HVACMode.AUTO, [HVACMode.OFF, HVACMode.HEAT, HVACMode.AUTO], None, []),
+            id="standard_heat_only",
+        ),
+    ],
+)
+def test_standard_view_state_cases(device_overrides, attrs, expected) -> None:
+    state = _state(device_overrides)
+    assert _attrs(state, *attrs) == expected
+    if not device_overrides:
+        assert state.supported_features == (
+            ClimateEntityFeature.TARGET_TEMPERATURE | TURN_ON_OFF_FEATURES
+        )
+
+
+@pytest.mark.parametrize("model", ["FC600", "FC600NH"])
+def test_fc600_fan_modes_are_exposed(model: str) -> None:
+    state = _state(
         {
-            "SystemMode": SQ610_MODE_COOL,
-            "RunningState": SQ610_RUNNING_COOL,
-            "HoldType": SQ610_HOLD_PERMANENT,
-            "CoolingSetpoint_x100": 2250,
-            "HeatingSetpoint_x100": 2100,
-        },
-    )
-
-    assert state.supports_cooling is True
-    assert state.hvac_modes == [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]
-    assert state.hvac_mode == HVACMode.COOL
-    assert state.hvac_action == HVACAction.COOLING
-    assert state.target_temperature == 22.5
-    assert state.preset_mode == PRESET_PERMANENT_HOLD
-    assert state.preset_modes == [PRESET_PERMANENT_HOLD, PRESET_FOLLOW_SCHEDULE]
-
-
-def test_sq610_auto_hold_preserves_cooling_system_mode() -> None:
-    state = build_climate_view_state(
-        _device(model="SQ610RF"),
-        {
-            "SystemMode": SQ610_MODE_COOL,
-            "RunningState": SQ610_RUNNING_COOL,
-            "HoldType": SQ610_HOLD_AUTO,
-            "CoolingSetpoint_x100": 2250,
-            "HeatingSetpoint_x100": 2100,
-        },
-    )
-
-    assert state.hvac_mode == HVACMode.COOL
-    assert state.target_temperature == 22.5
-    assert state.preset_mode == PRESET_FOLLOW_SCHEDULE
-
-
-def test_sq610_auto_hold_preserves_heating_system_mode() -> None:
-    state = build_climate_view_state(
-        _device(model="SQ610RF"),
-        {
-            "SystemMode": SQ610_MODE_HEAT,
-            "RunningState": SQ610_RUNNING_HEAT,
-            "HoldType": SQ610_HOLD_AUTO,
-            "CoolingSetpoint_x100": 2250,
-            "HeatingSetpoint_x100": 2100,
-        },
-    )
-
-    assert state.hvac_mode == HVACMode.HEAT
-    assert state.target_temperature == 21.0
-    assert state.preset_mode == PRESET_FOLLOW_SCHEDULE
-
-
-def test_sq610_current_temperature_uses_raw_temperature_measurement() -> None:
-    state = build_climate_view_state(
-        _device(model="SQ610RF", current_temperature=20.0),
-        {
-            "HoldType": SQ610_HOLD_PERMANENT,
-            "MeasuredValue_x100": 2235,
-            "HeatingSetpoint_x100": 2100,
-        },
-    )
-
-    assert state.current_temperature == 22.35
-
-
-def test_sq610_humidity_uses_raw_percent_value() -> None:
-    state = build_climate_view_state(
-        _device(model="SQ610RF", current_humidity=0.63),
-        {
-            "HoldType": SQ610_HOLD_PERMANENT,
-            "SunnySetpoint_x100": 63,
-            "HeatingSetpoint_x100": 2100,
-        },
-    )
-
-    assert state.current_humidity == 63.0
-
-
-def test_sq610_humidity_accepts_x100_value() -> None:
-    state = build_climate_view_state(
-        _device(model="SQ610RF"),
-        {
-            "HoldType": SQ610_HOLD_PERMANENT,
-            "SunnySetpoint_x100": 4550,
-            "HeatingSetpoint_x100": 2100,
-        },
-    )
-
-    assert state.current_humidity == 45.5
-
-
-def test_sq610_standby_maps_to_off_mode_and_off_action() -> None:
-    state = build_climate_view_state(
-        _device(model="SQ610RF"),
-        {
-            "RunningState": SQ610_RUNNING_HEAT,
-            "HoldType": SQ610_HOLD_STANDBY,
-            "HeatingSetpoint_x100": 2100,
-        },
-    )
-
-    assert state.hvac_mode == HVACMode.OFF
-    assert state.hvac_action == HVACAction.OFF
-    assert state.preset_mode is None
-
-
-def test_sq610_standby_hides_remembered_resume_preset() -> None:
-    state = build_climate_view_state(
-        _device(model="SQ610RF"),
-        {
-            "RunningState": SQ610_RUNNING_HEAT,
-            "HoldType": SQ610_HOLD_STANDBY,
-            "HeatingSetpoint_x100": 2100,
-        },
-        PRESET_FOLLOW_SCHEDULE,
-    )
-
-    assert state.hvac_mode == HVACMode.OFF
-    assert state.preset_mode is None
-
-
-def test_sq610_unknown_hold_type_uses_remembered_resume_preset() -> None:
-    state = build_climate_view_state(
-        _device(model="SQ610RF"),
-        {"HoldType": 99, "HeatingSetpoint_x100": 2100},
-        PRESET_FOLLOW_SCHEDULE,
-    )
-
-    assert state.preset_mode == PRESET_FOLLOW_SCHEDULE
-
-
-def test_sq610_auto_hold_without_system_state_falls_back_to_heat_mode() -> None:
-    state = build_climate_view_state(
-        _device(model="SQ610RF"),
-        {"HoldType": SQ610_HOLD_AUTO, "HeatingSetpoint_x100": 2100},
-    )
-
-    assert state.hvac_mode == HVACMode.HEAT
-    assert state.preset_mode == PRESET_FOLLOW_SCHEDULE
-
-
-def test_sq610_heat_only_exposes_off_heat_modes() -> None:
-    state = build_climate_view_state(
-        _device(model="SQ610RF"),
-        {"HoldType": SQ610_HOLD_PERMANENT, "HeatingSetpoint_x100": 2100},
-    )
-
-    assert state.hvac_modes == [HVACMode.OFF, HVACMode.HEAT]
-    assert state.supports_cooling is False
-
-
-def test_sq610_keeps_cool_mode_when_cooling_was_seen_before() -> None:
-    state = build_climate_view_state(
-        _device(model="SQ610RF"),
-        {"HoldType": SQ610_HOLD_PERMANENT, "HeatingSetpoint_x100": 2100},
-        sq610_known_supports_cooling=True,
-    )
-
-    assert state.supports_cooling is True
-    assert state.hvac_modes == [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]
-
-
-def test_standard_off_preset_maps_to_hvac_off_without_preset_menu() -> None:
-    state = build_climate_view_state(
-        _device(preset_mode=PRESET_OFF),
-        {},
-    )
-
-    assert state.hvac_mode == HVACMode.OFF
-    assert state.hvac_action == HVACAction.OFF
-    assert state.hvac_modes == [HVACMode.OFF, HVACMode.HEAT, HVACMode.AUTO]
-    assert state.preset_mode is None
-    assert state.preset_modes == []
-
-
-def test_simple_heat_only_device_uses_hvac_menu_without_preset_menu() -> None:
-    state = build_climate_view_state(_device(), {})
-
-    expected = (
-        ClimateEntityFeature.TARGET_TEMPERATURE
-        | getattr(ClimateEntityFeature, "TURN_ON", ClimateEntityFeature(0))
-        | getattr(ClimateEntityFeature, "TURN_OFF", ClimateEntityFeature(0))
-    )
-    assert state.hvac_mode == HVACMode.AUTO
-    assert state.hvac_modes == [HVACMode.OFF, HVACMode.HEAT, HVACMode.AUTO]
-    assert state.preset_mode is None
-    assert state.preset_modes == []
-    assert state.supported_features == expected
-
-
-def test_fc600_fan_modes_are_exposed() -> None:
-    state = build_climate_view_state(
-        _device(
-            model="FC600",
-            hvac_mode=HVACMode.COOL,
-            hvac_action=CURRENT_HVAC_COOL,
-            preset_modes=[
+            "model": model,
+            "hvac_mode": HVACMode.COOL,
+            "hvac_action": CURRENT_HVAC_COOL,
+            "preset_modes": [
                 RAW_PRESET_FOLLOW_SCHEDULE,
                 "Permanent Hold",
                 RAW_PRESET_ECO,
                 PRESET_OFF,
             ],
-            fan_mode=FAN_MODE_HIGH,
-            fan_modes=[FAN_MODE_AUTO, FAN_MODE_HIGH],
-        ),
-        {},
+            "fan_mode": FAN_MODE_HIGH,
+            "fan_modes": [FAN_MODE_AUTO, FAN_MODE_HIGH],
+        }
     )
 
-    assert state.supports_cooling is True
-    assert state.hvac_modes == [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL]
-    assert state.hvac_mode == HVACMode.COOL
-    assert state.preset_modes == [
-        PRESET_FOLLOW_SCHEDULE,
-        PRESET_PERMANENT_HOLD,
-        PRESET_ECO,
-    ]
-    assert state.fan_mode == "high"
-    assert state.fan_modes == ["auto", "high"]
+    assert _attrs(
+        state,
+        "supports_cooling",
+        "hvac_modes",
+        "hvac_mode",
+        "preset_modes",
+        "fan_modes",
+    ) == (
+        True,
+        [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL],
+        HVACMode.COOL,
+        [PRESET_FOLLOW_SCHEDULE, PRESET_PERMANENT_HOLD, PRESET_ECO],
+        ["auto", "high"],
+    )
     assert state.supported_features & ClimateEntityFeature.FAN_MODE
+    if model == "FC600":
+        assert state.fan_mode == "high"
 
 
-def test_fc600_off_preset_maps_to_off_hvac_mode() -> None:
-    state = build_climate_view_state(
-        _device(
-            model="FC600",
-            hvac_mode=HVACMode.COOL,
-            preset_mode=PRESET_OFF,
-            fan_mode=FAN_MODE_AUTO,
-            fan_modes=[FAN_MODE_AUTO, FAN_MODE_HIGH],
+@pytest.mark.parametrize(
+    ("device_overrides", "state_kwargs", "attrs", "expected"),
+    [
+        pytest.param(
+            {
+                "model": "FC600",
+                "hvac_mode": HVACMode.COOL,
+                "preset_mode": PRESET_OFF,
+                "fan_mode": FAN_MODE_AUTO,
+                "fan_modes": [FAN_MODE_AUTO, FAN_MODE_HIGH],
+            },
+            {},
+            ("hvac_mode", "hvac_action", "preset_mode"),
+            (HVACMode.OFF, HVACAction.OFF, None),
+            id="fc600_off",
         ),
-        {},
-    )
-
-    assert state.hvac_mode == HVACMode.OFF
-    assert state.hvac_action == HVACAction.OFF
-    assert state.preset_mode is None
-
-
-def test_fc600_off_preset_hides_remembered_resume_preset() -> None:
-    state = build_climate_view_state(
-        _device(
-            model="FC600",
-            hvac_mode=HVACMode.COOL,
-            preset_mode=PRESET_OFF,
-            fan_mode=FAN_MODE_AUTO,
-            fan_modes=[FAN_MODE_AUTO, FAN_MODE_HIGH],
+        pytest.param(
+            {
+                "model": "FC600",
+                "hvac_mode": HVACMode.COOL,
+                "preset_mode": PRESET_OFF,
+                "fan_mode": FAN_MODE_AUTO,
+                "fan_modes": [FAN_MODE_AUTO, FAN_MODE_HIGH],
+            },
+            {"fc600_resume_preset_mode": PRESET_ECO},
+            ("hvac_mode", "preset_mode"),
+            (HVACMode.OFF, None),
+            id="fc600_off_hides_resume",
         ),
-        {},
-        fc600_resume_preset_mode=PRESET_ECO,
-    )
-
-    assert state.hvac_mode == HVACMode.OFF
-    assert state.preset_mode is None
-
-
-def test_fc600_eco_maps_to_ha_eco_preset() -> None:
-    state = build_climate_view_state(
-        _device(
-            model="FC600",
-            hvac_mode=HVACMode.HEAT,
-            preset_mode=RAW_PRESET_ECO,
-            fan_mode=FAN_MODE_AUTO,
-            fan_modes=[FAN_MODE_AUTO, FAN_MODE_HIGH],
+        pytest.param(
+            {
+                "model": "FC600",
+                "hvac_mode": HVACMode.HEAT,
+                "preset_mode": RAW_PRESET_ECO,
+                "fan_mode": FAN_MODE_AUTO,
+                "fan_modes": [FAN_MODE_AUTO, FAN_MODE_HIGH],
+            },
+            {},
+            ("hvac_mode", "preset_mode"),
+            (HVACMode.HEAT, PRESET_ECO),
+            id="fc600_eco",
         ),
-        {},
-    )
-
-    assert state.hvac_mode == HVACMode.HEAT
-    assert state.preset_mode == PRESET_ECO
+    ],
+)
+def test_fc600_view_state_cases(device_overrides, state_kwargs, attrs, expected) -> None:
+    assert _attrs(_state(device_overrides, **state_kwargs), *attrs) == expected

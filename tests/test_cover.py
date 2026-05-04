@@ -21,7 +21,6 @@ def _coordinator_with_covers(*devices):
         switch_devices={},
         cover_devices={d.unique_id: d for d in devices},
         sensor_devices={},
-        raw_climate_props={},
     )
     return FakeCoordinator(data=data)
 
