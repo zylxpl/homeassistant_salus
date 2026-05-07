@@ -128,7 +128,7 @@ class SalusFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         config_entry: config_entries.ConfigEntry,
     ) -> SalusOptionsFlowHandler:
         """Create the options flow for this config entry."""
-        return SalusOptionsFlowHandler(config_entry)
+        return SalusOptionsFlowHandler()
 
     async def async_step_user(
         self,
@@ -244,21 +244,17 @@ class SalusFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 class SalusOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle Salus config entry options."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize the options flow."""
-        self._config_entry = config_entry
-
     def _options_schema(self) -> vol.Schema:
         """Return the options schema with current values as defaults."""
-        current_threshold = self._config_entry.options.get(
+        current_threshold = self.config_entry.options.get(
             CONF_POLL_FAILURE_THRESHOLD,
             DEFAULT_POLL_FAILURE_THRESHOLD,
         )
-        current_scan_interval = self._config_entry.options.get(
+        current_scan_interval = self.config_entry.options.get(
             CONF_SCAN_INTERVAL,
             DEFAULT_SCAN_INTERVAL_SECONDS,
         )
-        current_post_command_refresh_delay = self._config_entry.options.get(
+        current_post_command_refresh_delay = self.config_entry.options.get(
             CONF_POST_COMMAND_REFRESH_DELAY,
             DEFAULT_POST_COMMAND_REFRESH_DELAY,
         )

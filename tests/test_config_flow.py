@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -161,7 +160,7 @@ def test_valid_euid_rejects_invalid_values() -> None:
 
 
 async def test_options_flow_stores_scan_interval() -> None:
-    flow = config_flow.SalusOptionsFlowHandler(SimpleNamespace(options={}))
+    flow = config_flow.SalusOptionsFlowHandler()
     flow.flow_id = "test-flow"
     flow.handler = DOMAIN
     flow.context = {}
