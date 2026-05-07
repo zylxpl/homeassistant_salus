@@ -55,7 +55,7 @@ python3 -m json.tool custom_components/salus/manifest.json > /dev/null
 python3 -m json.tool custom_components/salus/strings.json > /dev/null
 python3 -m json.tool custom_components/salus/translations/en.json > /dev/null
 python3 -m json.tool custom_components/salus/translations/ca.json > /dev/null
-python3 -m unittest discover -q
+python3 -m pytest tests -q
 python3 -m ruff check custom_components tests
 python3 -m compileall -q custom_components tests
 git tag vX.Y.Z

@@ -1,17 +1,14 @@
 # Contributing
 
-This document covers development, testing, and pull-request preparation for
-`homeassistant_salus`.
+This document covers development, testing, and pull-request preparation for `homeassistant_salus`.
 
 Public repositories:
 
 - Home Assistant integration: `https://github.com/Jordi-14/homeassistant_salus`
 - Client package: `https://github.com/Jordi-14/salus-it600-client`
 
-End-user installation, setup, troubleshooting, and diagnostics guidance live in
-[README.md](README.md). Release policy lives in [RELEASE.md](RELEASE.md).
-Historical upstream issue notes live in
-[docs/upstream-issues.md](docs/upstream-issues.md).
+End-user installation, setup, troubleshooting, and diagnostics guidance live in [README.md](README.md). Release policy lives in [RELEASE.md](RELEASE.md).
+Historical upstream issue notes live in [docs/upstream-issues.md](docs/upstream-issues.md).
 
 ## Repository Boundary
 
@@ -22,18 +19,11 @@ This repository contains the Home Assistant custom integration:
 - entity platforms;
 - diagnostics, repairs, translations, and Home Assistant UX.
 
-Gateway protocol parsing, encryption, device models, and low-level commands
-belong in `salus-it600-client`. If a Home Assistant change needs raw gateway
-fields or a new command payload, add a public client method first and consume
-that method here. Climate entities and diagnostics should consume normalized
-client model fields and the shared diagnostic support-field whitelist instead
-of adding device-family raw polling in the integration.
+Gateway protocol parsing, encryption, device models, and low-level commands belong in `salus-it600-client`. If a Home Assistant change needs raw gateway fields or a new command payload, add a public client method first and consume that method here. Climate entities and diagnostics should consume normalized client model fields and the shared diagnostic support-field whitelist instead of adding device-family raw polling in the integration.
 
 ## Fork Workflow
 
-If you do not have permission to push branches to `Jordi-14/homeassistant_salus`,
-fork the repository and push your feature branch to your fork. Open the pull
-request back to `Jordi-14/homeassistant_salus`.
+If you do not have permission to push branches to `Jordi-14/homeassistant_salus`, fork the repository and push your feature branch to your fork. Open the pull request back to `Jordi-14/homeassistant_salus`.
 
 The branch-testing examples use owner placeholders:
 
@@ -41,6 +31,13 @@ The branch-testing examples use owner placeholders:
   integration fork branches.
 - `<client-owner>`: `Jordi-14` for maintainers, or your GitHub username for
   client fork branches.
+
+## Licensing Contributions
+
+Unless explicitly stated otherwise in a contribution, all contributions to this
+repository are submitted under the repository license expression
+`MIT OR Apache-2.0`. Upstream MIT notices remain preserved in
+[LICENSE-MIT](LICENSE-MIT), with project attribution in [NOTICE](NOTICE).
 
 ## Local Checks
 
@@ -51,18 +48,16 @@ python3 -m json.tool custom_components/salus/manifest.json > /dev/null
 python3 -m json.tool custom_components/salus/strings.json > /dev/null
 python3 -m json.tool custom_components/salus/translations/en.json > /dev/null
 python3 -m json.tool custom_components/salus/translations/ca.json > /dev/null
-python3 -m unittest discover -q
+python3 -m pytest tests -q
 python3 -m ruff check custom_components tests
 python3 -m compileall -q custom_components tests
 ```
 
-When changing UI text, update `strings.json` and all translation files. Logs,
-diagnostics internals, and developer-only messages can stay in English.
+When changing UI text, update `strings.json` and all translation files. Logs, diagnostics internals, and developer-only messages can stay in English.
 
 ## Architecture
 
-The integration uses one `DataUpdateCoordinator` to poll the Salus gateway every
-20 seconds and share one device snapshot across all platforms:
+The integration uses one `DataUpdateCoordinator` to poll the Salus gateway every 20 seconds and share one device snapshot across all platforms:
 
 ```text
 config_flow.py
@@ -104,13 +99,11 @@ PLATFORMS: tuple[Platform, ...] = (
 )
 ```
 
-Use `async_add_salus_entities()` from `entity.py` so discovery behavior stays
-consistent across platforms.
+Use `async_add_salus_entities()` from `entity.py` so discovery behavior stays consistent across platforms.
 
 ## Testing Feature Branches Before Release
 
-Feature branches can be tested in Home Assistant before creating a GitHub
-Release, creating a HACS release, or publishing a client package.
+Feature branches can be tested in Home Assistant before creating a GitHub Release, creating a HACS release, or publishing a client package.
 
 General rules:
 
@@ -124,8 +117,7 @@ General rules:
 
 ### Integration-Only Branch
 
-Use this when the integration changes but the existing published client pin in
-`manifest.json` is still correct.
+Use this when the integration changes but the existing published client pin in `manifest.json` is still correct.
 
 ```bash
 cd /config
@@ -153,12 +145,9 @@ rm -rf salus-branch-test
 
 ### Unreleased Client Branch
 
-Use this for Home Assistant OS or another managed environment where you cannot
-directly install a local wheel.
+Use this for Home Assistant OS or another managed environment where you cannot directly install a local wheel.
 
-First run the client checks from the client feature branch. Then create a
-temporary integration test branch and point `custom_components/salus/manifest.json`
-at the client branch:
+First run the client checks from the client feature branch. Then create a temporary integration test branch and point `custom_components/salus/manifest.json` at the client branch:
 
 ```json
 "requirements": [
@@ -166,18 +155,13 @@ at the client branch:
 ]
 ```
 
-Push the temporary integration branch, install it manually using the
-integration-only branch process, restart Home Assistant, and run the
-real-gateway checklist.
+Push the temporary integration branch, install it manually using the integration-only branch process, restart Home Assistant, and run the real-gateway checklist.
 
-Before opening or merging the real integration PR, restore the manifest to a
-published PyPI version. After the client package is released, update the
-manifest to the published package pin and rerun the local checks.
+Before opening or merging the real integration PR, restore the manifest to a published PyPI version. After the client package is released, update the manifest to the published package pin and rerun the local checks.
 
 ### Integration And Client Branches Together
 
-Use this when both repositories must be validated together before either PR is
-merged.
+Use this when both repositories must be validated together before either PR is merged.
 
 1. Run the client checks on the client feature branch.
 2. Run the integration checks on the integration feature branch.
@@ -189,9 +173,7 @@ merged.
 7. Restart Home Assistant and run the real-gateway checklist.
 8. Delete or discard the temporary test branch after testing.
 
-After the client PR is merged and `salus-it600-client` is published, update the
-integration branch to pin the published client version and rerun the integration
-checks before merging.
+After the client PR is merged and `salus-it600-client` is published, update the integration branch to pin the published client version and rerun the integration checks before merging.
 
 ## Real-Gateway Checklist
 
@@ -210,10 +192,6 @@ At minimum, verify:
 
 ## SQ610 Notes
 
-SQ610 thermostats have special Home Assistant handling for Heat/Cool exposure,
-standby, and the simplified presets `Permanent Hold`, `Standby`, and
-`Follow Salus Schedule`.
+SQ610 thermostats have special Home Assistant handling for Heat/Cool exposure, standby through HVAC `Off`, and the simplified presets `Permanent Hold` and `Follow Salus Schedule`.
 
-Raw SQ610 protocol behavior belongs in `salus-it600-client`. The integration
-should expose Home Assistant concepts and avoid duplicating protocol constants
-inside entity classes.
+Raw SQ610 protocol behavior belongs in `salus-it600-client`. The integration should expose Home Assistant concepts and avoid duplicating protocol constants inside entity classes.

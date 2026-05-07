@@ -232,10 +232,13 @@ The exact client version is pinned in `custom_components/salus/manifest.json`.
 
 This repository is a fork of [`epoplavskis/homeassistant_salus`](https://github.com/epoplavskis/homeassistant_salus), which is a fork of [`konradb3/homeassistant_salus`](https://github.com/konradb3/homeassistant_salus).
 
-It incorporates and reworks feature ideas from Leonard Pitzu's [`leonardpitzu/homeassistant_salus`](https://github.com/leonardpitzu/homeassistant_salus) fork, including broader device coverage, UG800/new-firmware support, TRV-related entities, SQ610 improvements, smart-plug metering, and thermostat lock support.
+It incorporates and reworks feature ideas from Leonard Pitzu's [`leonardpitzu/homeassistant_salus`](https://github.com/leonardpitzu/homeassistant_salus) fork, including broader device coverage, UG800/new-firmware support, TRV-related entities, SQ610 improvements, smart-plug metering, and thermostat lock support. Leonard Pitzu has since joined development here, and his fork has been retired.
 
 Protocol and parsing logic lives in the reusable [`salus-it600-client`](https://github.com/Jordi-14/salus-it600-client) library. This repository exposes those capabilities through Home Assistant entities, diagnostics, options, repairs, and translations.
 
 ## License
 
-Licensed under the Apache License, Version 2.0 — see [LICENSE](LICENSE) for details.
+Licensed under either the Apache License, Version 2.0
+([LICENSE-APACHE](LICENSE-APACHE)) or the MIT License
+([LICENSE-MIT](LICENSE-MIT)), at your option. See [LICENSE](LICENSE) and
+[NOTICE](NOTICE) for the license expression and attribution details.
