@@ -83,6 +83,7 @@ async def test_user_step_success_creates_entry(hass: HomeAssistant) -> None:
     assert result["title"] == "Gateway"
     assert result["data"][CONF_HOST] == "192.0.2.10"
     assert result["data"][CONF_TOKEN] == "001E5E0D32906128"
+    assert FakeGateway.instances[0].kwargs["session"] is not None
     assert FakeGateway.instances[0].closed
 
 

@@ -13,6 +13,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_TOKEN
 from homeassistant.helpers import selector
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from salus_it600.exceptions import (
     IT600AuthenticationError,
@@ -92,9 +93,13 @@ def _normalized_credentials(user_input: Mapping[str, Any]) -> tuple[str, str]:
     return str(user_input[CONF_HOST]).strip(), _valid_euid(str(user_input[CONF_TOKEN]))
 
 
-async def _async_validate_gateway(host: str, token: str) -> tuple[str | None, str | None]:
+async def _async_validate_gateway(
+    host: str,
+    token: str,
+    session: Any,
+) -> tuple[str | None, str | None]:
     """Validate gateway credentials and return the gateway unique ID or an error key."""
-    gateway = IT600Gateway(host=host, euid=token)
+    gateway = IT600Gateway(host=host, euid=token, session=session)
     try:
         async with asyncio.timeout(10):
             return await gateway.connect(), None
@@ -137,7 +142,11 @@ class SalusFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             except vol.Invalid:
                 errors[CONF_TOKEN] = "invalid_euid"
             else:
-                unique_id, error = await _async_validate_gateway(host, token)
+                unique_id, error = await _async_validate_gateway(
+                    host,
+                    token,
+                    async_get_clientsession(self.hass),
+                )
                 if error is not None:
                     errors["base"] = error
                 elif unique_id is not None:
@@ -203,7 +212,11 @@ class SalusFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             except vol.Invalid:
                 errors[CONF_TOKEN] = "invalid_euid"
             else:
-                unique_id, error = await _async_validate_gateway(host, token)
+                unique_id, error = await _async_validate_gateway(
+                    host,
+                    token,
+                    async_get_clientsession(self.hass),
+                )
                 if error is not None:
                     errors["base"] = error
                 elif unique_id is not None:
