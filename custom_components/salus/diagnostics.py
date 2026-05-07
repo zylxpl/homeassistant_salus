@@ -5,12 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_TOKEN
 from homeassistant.core import HomeAssistant
 
 from .const import DOMAIN
-from .coordinator import SalusData, SalusRuntimeData
+from .coordinator import SalusConfigEntry, SalusData, SalusRuntimeData
 
 TO_REDACT = {CONF_TOKEN}
 
@@ -73,7 +72,7 @@ CLIMATE_NORMALIZED_OPTIONAL_SEQUENCE_FIELDS = ("fan_modes",)
 
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: SalusConfigEntry,
 ) -> dict[str, Any]:
     """Return diagnostics for a Salus config entry."""
     runtime_data = _runtime_data(hass, entry)
@@ -111,7 +110,7 @@ async def async_get_config_entry_diagnostics(
 
 def _runtime_data(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: SalusConfigEntry,
 ) -> SalusRuntimeData | None:
     """Return runtime data from modern or fallback Home Assistant storage."""
     runtime_data = getattr(entry, "runtime_data", None)

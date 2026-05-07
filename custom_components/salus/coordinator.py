@@ -144,6 +144,9 @@ class SalusRuntimeData:
     coordinator: SalusDataUpdateCoordinator
 
 
+type SalusConfigEntry = ConfigEntry[SalusRuntimeData]
+
+
 def is_sq610_device(device: Any) -> bool:
     """Return whether the device is a Quantum thermostat."""
     return is_sq610_model(getattr(device, "model", None))
@@ -193,7 +196,7 @@ class SalusDataUpdateCoordinator(DataUpdateCoordinator[SalusData]):
     def __init__(
         self,
         hass: HomeAssistant,
-        config_entry: ConfigEntry,
+        config_entry: SalusConfigEntry,
         gateway: IT600Gateway,
     ) -> None:
         """Initialize the coordinator."""

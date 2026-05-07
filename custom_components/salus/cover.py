@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.cover import ATTR_POSITION, CoverEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
+from .coordinator import SalusConfigEntry
 from .entity import SalusEntity, async_setup_salus_platform_entities
 
 PARALLEL_UPDATES = 1
@@ -19,7 +19,7 @@ COVER_DEVICE_CLASS_BY_MODEL = {
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: SalusConfigEntry,
     async_add_entities,
 ) -> None:
     """Set up Salus cover devices from a config entry."""

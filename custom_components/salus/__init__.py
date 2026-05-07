@@ -6,7 +6,6 @@ import asyncio
 from contextlib import suppress
 from typing import Any
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_TOKEN
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
@@ -22,12 +21,12 @@ from salus_it600.exceptions import (
 from salus_it600.gateway import IT600Gateway
 
 from .const import CONNECT_RETRIES, CONNECT_RETRY_DELAY, DOMAIN, PLATFORMS
-from .coordinator import SalusDataUpdateCoordinator, SalusRuntimeData
+from .coordinator import SalusConfigEntry, SalusDataUpdateCoordinator, SalusRuntimeData
 
 CONFIG_SCHEMA = config_entry_only_config_schema(DOMAIN)
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: SalusConfigEntry) -> bool:
     """Set up Salus iT600 from a config entry."""
     gateway = IT600Gateway(
         host=entry.data[CONF_HOST],
@@ -66,7 +65,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def _async_options_updated(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def _async_options_updated(hass: HomeAssistant, entry: SalusConfigEntry) -> None:
     """Reload the config entry when integration options change."""
     await hass.config_entries.async_reload(entry.entry_id)
 
@@ -96,7 +95,7 @@ async def _async_connect_gateway(gateway: IT600Gateway) -> None:
 
 def _async_register_gateway_device(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: SalusConfigEntry,
     gateway_info: Any,
 ) -> None:
     """Register the Salus gateway device.
@@ -122,9 +121,9 @@ def _async_register_gateway_device(
     )
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: SalusConfigEntry) -> bool:
     """Unload a config entry."""
-    runtime_data: SalusRuntimeData = entry.runtime_data
+    runtime_data = entry.runtime_data
     runtime_data.coordinator.async_cancel_debounced_refresh()
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)

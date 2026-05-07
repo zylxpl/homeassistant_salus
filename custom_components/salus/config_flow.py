@@ -37,6 +37,7 @@ from .const import (
     MIN_POST_COMMAND_REFRESH_DELAY,
     MIN_SCAN_INTERVAL_SECONDS,
 )
+from .coordinator import SalusConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -125,7 +126,7 @@ class SalusFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     def async_get_options_flow(
-        config_entry: config_entries.ConfigEntry,
+        config_entry: SalusConfigEntry,
     ) -> SalusOptionsFlowHandler:
         """Create the options flow for this config entry."""
         return SalusOptionsFlowHandler()
@@ -201,7 +202,7 @@ class SalusFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self,
         *,
         step_id: str,
-        entry: config_entries.ConfigEntry,
+        entry: SalusConfigEntry,
         user_input: dict[str, Any] | None,
     ):
         """Validate input and update an existing config entry."""
