@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+Best-practice hardening:
+
+- Reuse Home Assistant's shared aiohttp client session for gateway setup and
+  config-flow validation so gateway HTTP connections follow Home Assistant's
+  session lifecycle.
+- Modernize options-flow and runtime-data typing by using
+  `ConfigEntry[SalusRuntimeData]` and Home Assistant's `self.config_entry`
+  options-flow property.
+- Set the Salus data coordinator to `always_update=False` and add regression
+  coverage so unchanged snapshots do not dispatch redundant entity updates.
+
 ## 0.8.0 - 2026-05-04
 
 Normalized climate model:
