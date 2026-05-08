@@ -206,6 +206,7 @@ class SalusDataUpdateCoordinator(DataUpdateCoordinator[SalusData]):
             name=DOMAIN,
             update_interval=_scan_interval_from_options(config_entry.options),
             config_entry=config_entry,
+            always_update=False,
         )
         self.gateway = gateway
         self._config_entry = config_entry

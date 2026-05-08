@@ -69,6 +69,7 @@ class FakeGateway:
     def get_sensor_devices(self) -> dict[str, Any]:
         return self.sensor_devices
 
+
 def _coordinator(
     hass: HomeAssistant,
     gateway: FakeGateway,
@@ -118,6 +119,35 @@ async def test_update_data_populates_snapshot(hass: HomeAssistant) -> None:
     health = coordinator.gateway_diagnostics()
     assert health["successful_updates"] == 1
     assert health["consecutive_update_failures"] == 0
+
+
+async def test_unchanged_snapshot_does_not_dispatch_listener_update(
+    hass: HomeAssistant,
+) -> None:
+    gateway = FakeGateway()
+    coordinator = _coordinator(hass, gateway)
+    listener_updates = 0
+
+    def _listener() -> None:
+        nonlocal listener_updates
+        listener_updates += 1
+
+    remove_listener = coordinator.async_add_listener(_listener)
+
+    await coordinator.async_refresh()
+    assert listener_updates == 1
+
+    await coordinator.async_refresh()
+    assert listener_updates == 1
+
+    changed_device = _device("sq610-1")
+    changed_device.target_temperature = 19.0
+    gateway.climate_devices = {"sq610-1": changed_device}
+
+    await coordinator.async_refresh()
+    assert listener_updates == 2
+
+    remove_listener()
 
 
 async def test_update_data_maps_auth_failure(hass: HomeAssistant) -> None:
