@@ -137,6 +137,7 @@ async def test_unchanged_snapshot_does_not_dispatch_listener_update(
     await coordinator.async_refresh()
     assert listener_updates == 1
 
+    gateway.climate_devices = {"sq610-1": _device("sq610-1")}
     await coordinator.async_refresh()
     assert listener_updates == 1
 

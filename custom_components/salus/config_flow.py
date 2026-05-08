@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import string
 from collections.abc import Mapping
@@ -102,16 +101,13 @@ async def _async_validate_gateway(
     """Validate gateway credentials and return the gateway unique ID or an error key."""
     gateway = IT600Gateway(host=host, euid=token, session=session)
     try:
-        async with asyncio.timeout(10):
-            return await gateway.connect(), None
+        return await gateway.connect(), None
     except IT600ConnectionError:
         return None, "connect_error"
     except IT600AuthenticationError:
         return None, "auth_error"
     except IT600UnsupportedFirmwareError:
         return None, "unsupported_firmware"
-    except TimeoutError:
-        return None, "connect_error"
     except Exception:
         _LOGGER.exception("Unexpected error during Salus config flow")
         return None, "unknown"
