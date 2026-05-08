@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.8.1 - 2026-05-08
 
 Best-practice hardening:
 
+- Require `salus-it600-client 0.5.1`.
 - Reuse Home Assistant's shared aiohttp client session for gateway setup and
   config-flow validation so gateway HTTP connections follow Home Assistant's
   session lifecycle.
