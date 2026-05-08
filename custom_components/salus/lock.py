@@ -5,10 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.lock import LockEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 
+from .coordinator import SalusConfigEntry
 from .entity import SalusEntity, async_setup_salus_platform_entities
 
 PARALLEL_UPDATES = 1
@@ -16,7 +16,7 @@ PARALLEL_UPDATES = 1
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: SalusConfigEntry,
     async_add_entities,
 ) -> None:
     """Set up Salus thermostat lock entities from a config entry."""

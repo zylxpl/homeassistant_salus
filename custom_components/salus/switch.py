@@ -5,9 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
+from .coordinator import SalusConfigEntry
 from .entity import SalusEntity, async_setup_salus_platform_entities
 
 PARALLEL_UPDATES = 1
@@ -17,7 +17,7 @@ MULTIFUNCTION_SWITCH_MODELS = {"RS600", "SR600"}
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: SalusConfigEntry,
     async_add_entities,
 ) -> None:
     """Set up Salus switches from a config entry."""

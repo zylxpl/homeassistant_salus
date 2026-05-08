@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -83,6 +82,7 @@ async def test_user_step_success_creates_entry(hass: HomeAssistant) -> None:
     assert result["title"] == "Gateway"
     assert result["data"][CONF_HOST] == "192.0.2.10"
     assert result["data"][CONF_TOKEN] == "001E5E0D32906128"
+    assert FakeGateway.instances[0].kwargs["session"] is not None
     assert FakeGateway.instances[0].closed
 
 
@@ -160,7 +160,7 @@ def test_valid_euid_rejects_invalid_values() -> None:
 
 
 async def test_options_flow_stores_scan_interval() -> None:
-    flow = config_flow.SalusOptionsFlowHandler(SimpleNamespace(options={}))
+    flow = config_flow.SalusOptionsFlowHandler()
     flow.flow_id = "test-flow"
     flow.handler = DOMAIN
     flow.context = {}

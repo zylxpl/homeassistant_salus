@@ -90,6 +90,7 @@ async def test_setup_entry_forwards_platforms(hass: HomeAssistant) -> None:
     assert result is True
     mock_forward.assert_called_once_with(entry, PLATFORMS)
     assert FakeGateway.instances[0].kwargs[CONF_HOST] == "192.0.2.10"
+    assert FakeGateway.instances[0].kwargs["session"] is not None
     assert not FakeGateway.instances[0].closed
 
 

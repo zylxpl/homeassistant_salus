@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity import DeviceInfo
@@ -13,7 +12,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from salus_it600.exceptions import IT600CommandError, IT600ConnectionError
 
 from .const import DOMAIN
-from .coordinator import SalusData, SalusDataUpdateCoordinator, SalusRuntimeData
+from .coordinator import SalusConfigEntry, SalusData, SalusDataUpdateCoordinator
 
 
 class SalusEntity(CoordinatorEntity[SalusDataUpdateCoordinator]):
@@ -112,7 +111,7 @@ class SalusEntity(CoordinatorEntity[SalusDataUpdateCoordinator]):
 
 
 def async_add_salus_entities(
-    config_entry: ConfigEntry,
+    config_entry: SalusConfigEntry,
     coordinator: SalusDataUpdateCoordinator,
     async_add_entities: Callable[[list[SalusEntity]], None],
     entity_factory: Callable[[str], SalusEntity],
@@ -143,14 +142,13 @@ def async_add_salus_entities(
 
 
 def async_setup_salus_platform_entities(
-    config_entry: ConfigEntry,
+    config_entry: SalusConfigEntry,
     async_add_entities: Callable[[list[SalusEntity]], None],
     entity_factory: Callable[[SalusDataUpdateCoordinator, str], SalusEntity],
     devices_getter: Callable[[SalusData], Mapping[str, Any]],
 ) -> None:
     """Set up one Salus platform using the shared entity discovery helper."""
-    runtime_data: SalusRuntimeData = config_entry.runtime_data
-    coordinator = runtime_data.coordinator
+    coordinator = config_entry.runtime_data.coordinator
 
     async_add_salus_entities(
         config_entry,

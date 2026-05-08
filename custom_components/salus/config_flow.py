@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import string
 from collections.abc import Mapping
@@ -13,6 +12,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_TOKEN
 from homeassistant.helpers import selector
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from salus_it600.exceptions import (
     IT600AuthenticationError,
@@ -36,6 +36,7 @@ from .const import (
     MIN_POST_COMMAND_REFRESH_DELAY,
     MIN_SCAN_INTERVAL_SECONDS,
 )
+from .coordinator import SalusConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -92,20 +93,21 @@ def _normalized_credentials(user_input: Mapping[str, Any]) -> tuple[str, str]:
     return str(user_input[CONF_HOST]).strip(), _valid_euid(str(user_input[CONF_TOKEN]))
 
 
-async def _async_validate_gateway(host: str, token: str) -> tuple[str | None, str | None]:
+async def _async_validate_gateway(
+    host: str,
+    token: str,
+    session: Any,
+) -> tuple[str | None, str | None]:
     """Validate gateway credentials and return the gateway unique ID or an error key."""
-    gateway = IT600Gateway(host=host, euid=token)
+    gateway = IT600Gateway(host=host, euid=token, session=session)
     try:
-        async with asyncio.timeout(10):
-            return await gateway.connect(), None
+        return await gateway.connect(), None
     except IT600ConnectionError:
         return None, "connect_error"
     except IT600AuthenticationError:
         return None, "auth_error"
     except IT600UnsupportedFirmwareError:
         return None, "unsupported_firmware"
-    except TimeoutError:
-        return None, "connect_error"
     except Exception:
         _LOGGER.exception("Unexpected error during Salus config flow")
         return None, "unknown"
@@ -120,10 +122,10 @@ class SalusFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     def async_get_options_flow(
-        config_entry: config_entries.ConfigEntry,
+        config_entry: SalusConfigEntry,
     ) -> SalusOptionsFlowHandler:
         """Create the options flow for this config entry."""
-        return SalusOptionsFlowHandler(config_entry)
+        return SalusOptionsFlowHandler()
 
     async def async_step_user(
         self,
@@ -137,7 +139,11 @@ class SalusFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             except vol.Invalid:
                 errors[CONF_TOKEN] = "invalid_euid"
             else:
-                unique_id, error = await _async_validate_gateway(host, token)
+                unique_id, error = await _async_validate_gateway(
+                    host,
+                    token,
+                    async_get_clientsession(self.hass),
+                )
                 if error is not None:
                     errors["base"] = error
                 elif unique_id is not None:
@@ -192,7 +198,7 @@ class SalusFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         self,
         *,
         step_id: str,
-        entry: config_entries.ConfigEntry,
+        entry: SalusConfigEntry,
         user_input: dict[str, Any] | None,
     ):
         """Validate input and update an existing config entry."""
@@ -203,7 +209,11 @@ class SalusFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             except vol.Invalid:
                 errors[CONF_TOKEN] = "invalid_euid"
             else:
-                unique_id, error = await _async_validate_gateway(host, token)
+                unique_id, error = await _async_validate_gateway(
+                    host,
+                    token,
+                    async_get_clientsession(self.hass),
+                )
                 if error is not None:
                     errors["base"] = error
                 elif unique_id is not None:
@@ -231,21 +241,17 @@ class SalusFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 class SalusOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle Salus config entry options."""
 
-    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize the options flow."""
-        self._config_entry = config_entry
-
     def _options_schema(self) -> vol.Schema:
         """Return the options schema with current values as defaults."""
-        current_threshold = self._config_entry.options.get(
+        current_threshold = self.config_entry.options.get(
             CONF_POLL_FAILURE_THRESHOLD,
             DEFAULT_POLL_FAILURE_THRESHOLD,
         )
-        current_scan_interval = self._config_entry.options.get(
+        current_scan_interval = self.config_entry.options.get(
             CONF_SCAN_INTERVAL,
             DEFAULT_SCAN_INTERVAL_SECONDS,
         )
-        current_post_command_refresh_delay = self._config_entry.options.get(
+        current_post_command_refresh_delay = self.config_entry.options.get(
             CONF_POST_COMMAND_REFRESH_DELAY,
             DEFAULT_POST_COMMAND_REFRESH_DELAY,
         )

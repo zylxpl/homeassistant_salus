@@ -11,7 +11,6 @@ from homeassistant.components.climate.const import (
     HVACAction,
     HVACMode,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE
 from homeassistant.core import HomeAssistant
 from salus_it600.device_models import (
@@ -39,7 +38,7 @@ from ._climate_state import (
     build_climate_capabilities,
     build_climate_view_state,
 )
-from .coordinator import is_sq610_device
+from .coordinator import SalusConfigEntry, is_sq610_device
 from .entity import SalusEntity, async_setup_salus_platform_entities
 
 _LOGGER = logging.getLogger(__name__)
@@ -80,7 +79,7 @@ EXPOSED_PRESET_TO_RAW = {
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    config_entry: ConfigEntry,
+    config_entry: SalusConfigEntry,
     async_add_entities,
 ) -> None:
     """Set up Salus thermostats from a config entry."""
