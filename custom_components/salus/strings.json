@@ -76,6 +76,8 @@
               "standby": "Standby",
               "permanent_hold": "Permanent hold",
               "follow_schedule": "Follow Salus schedule",
+              "away": "Away",
+              "temporary_hold": "Temporary hold",
               "eco": "Eco"
             }
           }

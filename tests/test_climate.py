@@ -6,11 +6,12 @@ import pytest
 from homeassistant.components.climate import ClimateEntityFeature, HVACAction, HVACMode
 from homeassistant.const import UnitOfTemperature
 from homeassistant.exceptions import HomeAssistantError
-from salus_it600.const import CURRENT_HVAC_COOL, CURRENT_HVAC_HEAT, CURRENT_HVAC_IDLE
+from salus_it600.const import CURRENT_HVAC_COOL, CURRENT_HVAC_HEAT, CURRENT_HVAC_IDLE, HoldType
 from salus_it600.device_models import (
     SQ610_HOLD_AUTO,
     SQ610_HOLD_PERMANENT,
     SQ610_HOLD_STANDBY,
+    SQ610_HOLD_AWAY,
     SQ610_MODE_COOL,
     SQ610_RUNNING_COOL,
     SQ610_RUNNING_HEAT,
@@ -22,10 +23,14 @@ from custom_components.salus._climate_state import (
     PRESET_FOLLOW_SCHEDULE,
     PRESET_PERMANENT_HOLD,
     PRESET_STANDBY,
+    PRESET_AWAY,
+    PRESET_TEMPORARY_HOLD,
     RAW_PRESET_ECO,
     RAW_PRESET_FOLLOW_SCHEDULE,
     RAW_PRESET_OFF,
     RAW_PRESET_PERMANENT_HOLD,
+    RAW_PRESET_AWAY,
+    RAW_PRESET_TEMPORARY_HOLD,
 )
 from custom_components.salus.climate import SalusThermostat
 from custom_components.salus.const import DOMAIN
@@ -46,6 +51,10 @@ def _normalized_sq610_device(device, fields):
             if device.hold_type == SQ610_HOLD_AUTO
             else RAW_PRESET_PERMANENT_HOLD
             if device.hold_type == SQ610_HOLD_PERMANENT
+            else RAW_PRESET_AWAY
+            if device.hold_type == SQ610_HOLD_AWAY
+            else RAW_PRESET_TEMPORARY_HOLD
+            if device.hold_type == HoldType.TEMPORARY_HOLD
             else RAW_PRESET_OFF
             if device.hold_type == SQ610_HOLD_STANDBY
             else device.preset_mode
@@ -84,6 +93,10 @@ def _set_sq610_hold(device, hold_type: int) -> None:
         if hold_type == SQ610_HOLD_AUTO
         else RAW_PRESET_PERMANENT_HOLD
         if hold_type == SQ610_HOLD_PERMANENT
+        else RAW_PRESET_AWAY
+        if hold_type == SQ610_HOLD_AWAY
+        else RAW_PRESET_TEMPORARY_HOLD
+        if hold_type == HoldType.TEMPORARY_HOLD
         else RAW_PRESET_OFF
         if hold_type == SQ610_HOLD_STANDBY
         else device.preset_mode
@@ -274,6 +287,18 @@ class TestSQ610Properties:
         coord = FakeCoordinator()  # empty data
         entity = SalusThermostat(coord, "nonexistent")
         assert entity.available is False
+
+    def test_preset_modes_for_sq610(self):
+        """Test that SQ610 exposes all supported preset modes."""
+        device = make_climate_device()
+        coord = _coordinator_with_climate(device)
+        entity = SalusThermostat(coord, device.unique_id)
+        assert entity.preset_modes == [
+            PRESET_PERMANENT_HOLD,
+            PRESET_FOLLOW_SCHEDULE,
+            PRESET_AWAY,
+            PRESET_TEMPORARY_HOLD,
+        ]
 
 
 # ---------------------------------------------------------------------------
@@ -498,6 +523,8 @@ class TestSQ610Commands:
         [
             (PRESET_FOLLOW_SCHEDULE, RAW_PRESET_FOLLOW_SCHEDULE),
             (PRESET_PERMANENT_HOLD, RAW_PRESET_PERMANENT_HOLD),
+            (PRESET_AWAY, RAW_PRESET_AWAY),
+            (PRESET_TEMPORARY_HOLD, RAW_PRESET_TEMPORARY_HOLD),
             (PRESET_STANDBY, RAW_PRESET_OFF),
         ],
     )
@@ -548,6 +575,26 @@ class TestSQ610Commands:
             _gateway_call("set_climate_mode", device, HVACMode.HEAT),
             _gateway_call("set_climate_preset", device, RAW_PRESET_FOLLOW_SCHEDULE),
         )
+
+    async def test_preset_mode_away(self):
+        """Test that Away preset mode is recognized."""
+        device = make_climate_device()
+        _, coord, entity = _thermostat(
+            device,
+            _fields(device, hold_type=SQ610_HOLD_AWAY),
+        )
+
+        assert entity.preset_mode == PRESET_AWAY
+
+    async def test_preset_mode_temporary_hold(self):
+        """Test that Temporary Hold preset mode is recognized."""
+        device = make_climate_device()
+        _, coord, entity = _thermostat(
+            device,
+            _fields(device, hold_type=HoldType.TEMPORARY_HOLD),
+        )
+
+        assert entity.preset_mode == PRESET_TEMPORARY_HOLD
 
     async def test_unknown_hold_type_does_not_overwrite_resume_memory(self):
         device = make_climate_device()

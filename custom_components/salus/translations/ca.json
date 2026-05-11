@@ -76,7 +76,9 @@
                             "eco": "Eco",
                             "follow_schedule": "Seguir l'horari de Salus",
                             "permanent_hold": "Mantenir permanentment",
-                            "standby": "Aturat"
+                            "standby": "Aturat",
+                            "away": "Fora",
+                            "temporary_hold": "Manteniment temporal"
                         }
                     }
                 }
