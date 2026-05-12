@@ -311,7 +311,7 @@ def test_fc600_fan_modes_are_exposed(model: str) -> None:
         True,
         [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL],
         HVACMode.COOL,
-        [PRESET_FOLLOW_SCHEDULE, PRESET_PERMANENT_HOLD, PRESET_ECO],
+        [PRESET_FOLLOW_SCHEDULE, PRESET_PERMANENT_HOLD, PRESET_SCHEDULE_OVERRIDE, PRESET_ECO],
         ["auto", "high"],
     )
     assert state.supported_features & ClimateEntityFeature.FAN_MODE

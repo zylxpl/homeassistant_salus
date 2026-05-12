@@ -404,7 +404,7 @@ def _build_preset_modes(
     if device and capabilities.is_sq610:
         return SQ610_EXPOSED_PRESET_MODES
     if device and capabilities.is_fc600:
-        modes = [PRESET_FOLLOW_SCHEDULE, PRESET_PERMANENT_HOLD]
+        modes = [PRESET_FOLLOW_SCHEDULE, PRESET_PERMANENT_HOLD, PRESET_SCHEDULE_OVERRIDE]
         if capabilities.supports_eco:
             modes.append(PRESET_ECO)
         return modes

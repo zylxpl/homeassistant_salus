@@ -337,6 +337,7 @@ class TestFC600Properties:
         assert entity.preset_modes == [
             PRESET_FOLLOW_SCHEDULE,
             PRESET_PERMANENT_HOLD,
+            PRESET_SCHEDULE_OVERRIDE,
             PRESET_ECO,
         ]
 
@@ -857,14 +858,24 @@ class TestFC600Commands:
 class TestPresetCapabilityGating:
     """Verify that family-specific presets are rejected for unsupported devices."""
 
-    @pytest.mark.parametrize("preset_mode", [PRESET_AWAY, PRESET_SCHEDULE_OVERRIDE])
-    async def test_sq610_specific_presets_rejected_for_fc600(self, preset_mode):
+    async def test_away_rejected_for_fc600(self):
         device = make_fc600_device()
         _, coord, entity = _thermostat(device)
 
-        await entity.async_set_preset_mode(preset_mode)
+        await entity.async_set_preset_mode(PRESET_AWAY)
 
         _assert_gateway_calls(coord)  # no gateway calls
+
+    async def test_schedule_override_accepted_for_fc600(self):
+        device = make_fc600_device()
+        _, coord, entity = _thermostat(device)
+
+        await entity.async_set_preset_mode(PRESET_SCHEDULE_OVERRIDE)
+
+        _assert_gateway_calls(
+            coord,
+            _gateway_call("set_climate_preset", device, RAW_PRESET_SCHEDULE_OVERRIDE),
+        )
 
     @pytest.mark.parametrize("preset_mode", [PRESET_AWAY, PRESET_SCHEDULE_OVERRIDE])
     async def test_sq610_specific_presets_rejected_for_heat_only(self, preset_mode):
