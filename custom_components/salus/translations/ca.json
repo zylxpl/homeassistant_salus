@@ -78,7 +78,7 @@
                             "permanent_hold": "Mantenir permanentment",
                             "standby": "Aturat",
                             "away": "Fora",
-                            "temporary_hold": "Manteniment temporal"
+                            "schedule_override": "Sobreescriptura de programació"
                         }
                     }
                 }

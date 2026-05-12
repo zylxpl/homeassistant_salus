@@ -9,7 +9,7 @@
               "follow_schedule": "mdi:calendar",
               "permanent_hold": "mdi:hand-back-right",
               "away": "mdi:airplane",
-              "temporary_hold": "mdi:calendar-clock"
+              "schedule_override": "mdi:calendar-clock"
             }
           }
         }

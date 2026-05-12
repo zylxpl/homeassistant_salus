@@ -78,7 +78,7 @@
                             "permanent_hold": "Permanent hold",
                             "standby": "Standby",
                             "away": "Away",
-                            "temporary_hold": "Temporary hold"
+                            "schedule_override": "Schedule override"
                         }
                     }
                 }

@@ -77,7 +77,7 @@
               "permanent_hold": "Permanent hold",
               "follow_schedule": "Follow Salus schedule",
               "away": "Away",
-              "temporary_hold": "Temporary hold",
+              "schedule_override": "Schedule override",
               "eco": "Eco"
             }
           }

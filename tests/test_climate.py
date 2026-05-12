@@ -24,13 +24,13 @@ from custom_components.salus._climate_state import (
     PRESET_PERMANENT_HOLD,
     PRESET_STANDBY,
     PRESET_AWAY,
-    PRESET_TEMPORARY_HOLD,
+    PRESET_SCHEDULE_OVERRIDE,
     RAW_PRESET_ECO,
     RAW_PRESET_FOLLOW_SCHEDULE,
     RAW_PRESET_OFF,
     RAW_PRESET_PERMANENT_HOLD,
     RAW_PRESET_AWAY,
-    RAW_PRESET_TEMPORARY_HOLD,
+    RAW_PRESET_SCHEDULE_OVERRIDE,
 )
 from custom_components.salus.climate import SalusThermostat
 from custom_components.salus.const import DOMAIN
@@ -53,7 +53,7 @@ def _normalized_sq610_device(device, fields):
             if device.hold_type == SQ610_HOLD_PERMANENT
             else RAW_PRESET_AWAY
             if device.hold_type == SQ610_HOLD_AWAY
-            else RAW_PRESET_TEMPORARY_HOLD
+            else RAW_PRESET_SCHEDULE_OVERRIDE
             if device.hold_type == HoldType.TEMPORARY_HOLD
             else RAW_PRESET_OFF
             if device.hold_type == SQ610_HOLD_STANDBY
@@ -95,7 +95,7 @@ def _set_sq610_hold(device, hold_type: int) -> None:
         if hold_type == SQ610_HOLD_PERMANENT
         else RAW_PRESET_AWAY
         if hold_type == SQ610_HOLD_AWAY
-        else RAW_PRESET_TEMPORARY_HOLD
+        else RAW_PRESET_SCHEDULE_OVERRIDE
         if hold_type == HoldType.TEMPORARY_HOLD
         else RAW_PRESET_OFF
         if hold_type == SQ610_HOLD_STANDBY
@@ -297,7 +297,7 @@ class TestSQ610Properties:
             PRESET_PERMANENT_HOLD,
             PRESET_FOLLOW_SCHEDULE,
             PRESET_AWAY,
-            PRESET_TEMPORARY_HOLD,
+            PRESET_SCHEDULE_OVERRIDE,
         ]
 
 
@@ -524,7 +524,7 @@ class TestSQ610Commands:
             (PRESET_FOLLOW_SCHEDULE, RAW_PRESET_FOLLOW_SCHEDULE),
             (PRESET_PERMANENT_HOLD, RAW_PRESET_PERMANENT_HOLD),
             (PRESET_AWAY, RAW_PRESET_AWAY),
-            (PRESET_TEMPORARY_HOLD, RAW_PRESET_TEMPORARY_HOLD),
+            (PRESET_SCHEDULE_OVERRIDE, RAW_PRESET_SCHEDULE_OVERRIDE),
             (PRESET_STANDBY, RAW_PRESET_OFF),
         ],
     )
@@ -586,15 +586,15 @@ class TestSQ610Commands:
 
         assert entity.preset_mode == PRESET_AWAY
 
-    async def test_preset_mode_temporary_hold(self):
-        """Test that Temporary Hold preset mode is recognized."""
+    async def test_preset_mode_schedule_override(self):
+        """Test that Schedule Override preset mode is recognized."""
         device = make_climate_device()
         _, coord, entity = _thermostat(
             device,
             _fields(device, hold_type=HoldType.TEMPORARY_HOLD),
         )
 
-        assert entity.preset_mode == PRESET_TEMPORARY_HOLD
+        assert entity.preset_mode == PRESET_SCHEDULE_OVERRIDE
 
     async def test_unknown_hold_type_does_not_overwrite_resume_memory(self):
         device = make_climate_device()
@@ -847,3 +847,41 @@ class TestFC600Commands:
             _gateway_call("set_climate_preset", device, raw_preset),
         )
         assert coord.refresh_requests == 1
+
+
+# ---------------------------------------------------------------------------
+# Capability gating tests
+# ---------------------------------------------------------------------------
+
+
+class TestPresetCapabilityGating:
+    """Verify that family-specific presets are rejected for unsupported devices."""
+
+    @pytest.mark.parametrize("preset_mode", [PRESET_AWAY, PRESET_SCHEDULE_OVERRIDE])
+    async def test_sq610_specific_presets_rejected_for_fc600(self, preset_mode):
+        device = make_fc600_device()
+        _, coord, entity = _thermostat(device)
+
+        await entity.async_set_preset_mode(preset_mode)
+
+        _assert_gateway_calls(coord)  # no gateway calls
+
+    @pytest.mark.parametrize("preset_mode", [PRESET_AWAY, PRESET_SCHEDULE_OVERRIDE])
+    async def test_sq610_specific_presets_rejected_for_heat_only(self, preset_mode):
+        device = make_climate_device(
+            model="HTRP-RF(50)",
+            hvac_modes=["heat"],
+            preset_mode="Follow Schedule",
+        )
+        _, coord, entity = _thermostat(device)
+
+        await entity.async_set_preset_mode(preset_mode)
+
+        _assert_gateway_calls(coord)  # no gateway calls
+
+    async def test_eco_rejected_for_sq610(self):
+        device, coord, entity = _thermostat()
+
+        await entity.async_set_preset_mode(PRESET_ECO)
+
+        _assert_gateway_calls(coord)  # no gateway calls
