@@ -300,6 +300,59 @@ class TestSQ610Properties:
             PRESET_SCHEDULE_OVERRIDE,
         ]
 
+    def test_preset_modes_for_sq610_follow_schedule_hides_override(self):
+        """Schedule Override not exposed when SQ610 is in Follow Schedule."""
+        device = make_climate_device()
+        _, _, entity = _thermostat(
+            device,
+            _fields(device, hold_type=SQ610_HOLD_AUTO),
+        )
+        assert entity.preset_modes == [
+            PRESET_PERMANENT_HOLD,
+            PRESET_FOLLOW_SCHEDULE,
+            PRESET_AWAY,
+        ]
+
+    def test_preset_modes_for_sq610_temporary_hold_shows_override(self):
+        """Schedule Override exposed when SQ610 reports HoldType 1."""
+        device = make_climate_device()
+        _, _, entity = _thermostat(
+            device,
+            _fields(device, hold_type=HoldType.TEMPORARY_HOLD),
+        )
+        assert entity.preset_modes == [
+            PRESET_PERMANENT_HOLD,
+            PRESET_FOLLOW_SCHEDULE,
+            PRESET_AWAY,
+            PRESET_SCHEDULE_OVERRIDE,
+        ]
+
+    def test_preset_modes_for_sq610_away_hides_override(self):
+        """Schedule Override not exposed when SQ610 is in Away."""
+        device = make_climate_device()
+        _, _, entity = _thermostat(
+            device,
+            _fields(device, hold_type=SQ610_HOLD_AWAY),
+        )
+        assert entity.preset_modes == [
+            PRESET_PERMANENT_HOLD,
+            PRESET_FOLLOW_SCHEDULE,
+            PRESET_AWAY,
+        ]
+
+    async def test_schedule_override_rejected_when_not_exposed(self):
+        """Selecting Schedule Override when in Follow Schedule is a no-op."""
+        device = make_climate_device()
+        _, coord, entity = _thermostat(
+            device,
+            _fields(device, hold_type=SQ610_HOLD_AUTO),
+        )
+        assert PRESET_SCHEDULE_OVERRIDE not in entity.preset_modes
+
+        await entity.async_set_preset_mode(PRESET_SCHEDULE_OVERRIDE)
+
+        _assert_gateway_calls(coord)  # no gateway calls
+
 
 # ---------------------------------------------------------------------------
 # FC600 fan-coil tests
@@ -337,7 +390,6 @@ class TestFC600Properties:
         assert entity.preset_modes == [
             PRESET_FOLLOW_SCHEDULE,
             PRESET_PERMANENT_HOLD,
-            PRESET_SCHEDULE_OVERRIDE,
             PRESET_ECO,
         ]
 
@@ -866,9 +918,21 @@ class TestPresetCapabilityGating:
 
         _assert_gateway_calls(coord)  # no gateway calls
 
-    async def test_schedule_override_accepted_for_fc600(self):
+    async def test_schedule_override_rejected_for_fc600_without_active_override(self):
         device = make_fc600_device()
         _, coord, entity = _thermostat(device)
+
+        await entity.async_set_preset_mode(PRESET_SCHEDULE_OVERRIDE)
+
+        _assert_gateway_calls(coord)  # no gateway calls
+
+    async def test_schedule_override_accepted_for_fc600_when_active(self):
+        device = make_fc600_device()
+        device.hold_type = HoldType.TEMPORARY_HOLD
+        device.preset_mode = RAW_PRESET_SCHEDULE_OVERRIDE
+        _, coord, entity = _thermostat(device)
+
+        assert PRESET_SCHEDULE_OVERRIDE in entity.preset_modes
 
         await entity.async_set_preset_mode(PRESET_SCHEDULE_OVERRIDE)
 

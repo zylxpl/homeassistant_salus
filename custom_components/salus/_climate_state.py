@@ -51,11 +51,10 @@ EXPOSED_PRESET_MODES = [
     PRESET_STANDBY,
     PRESET_FOLLOW_SCHEDULE,
 ]
-SQ610_EXPOSED_PRESET_MODES = [
+SQ610_BASE_PRESET_MODES = [
     PRESET_PERMANENT_HOLD,
     PRESET_FOLLOW_SCHEDULE,
     PRESET_AWAY,
-    PRESET_SCHEDULE_OVERRIDE,
 ]
 FC600_EXPOSED_PRESET_MODES = [
     PRESET_FOLLOW_SCHEDULE,
@@ -104,7 +103,6 @@ FC600_RAW_PRESET_TO_HA = {
 }
 MANUAL_PRESET_MODES = {
     RAW_PRESET_PERMANENT_HOLD,
-    RAW_PRESET_SCHEDULE_OVERRIDE,
     RAW_PRESET_ECO,
 }
 TURN_ON_OFF_FEATURES = (
@@ -402,9 +400,16 @@ def _build_preset_modes(
     if not capabilities.uses_independent_preset_control:
         return []
     if device and capabilities.is_sq610:
-        return SQ610_EXPOSED_PRESET_MODES
+        hold_type = getattr(device, "hold_type", None)
+        modes = list(SQ610_BASE_PRESET_MODES)
+        if hold_type == HoldType.TEMPORARY_HOLD or hold_type == HoldType.PERMANENT_HOLD:
+            modes.append(PRESET_SCHEDULE_OVERRIDE)
+        return modes
     if device and capabilities.is_fc600:
-        modes = [PRESET_FOLLOW_SCHEDULE, PRESET_PERMANENT_HOLD, PRESET_SCHEDULE_OVERRIDE]
+        hold_type = getattr(device, "hold_type", None)
+        modes = [PRESET_FOLLOW_SCHEDULE, PRESET_PERMANENT_HOLD]
+        if hold_type == HoldType.TEMPORARY_HOLD:
+            modes.append(PRESET_SCHEDULE_OVERRIDE)
         if capabilities.supports_eco:
             modes.append(PRESET_ECO)
         return modes
@@ -413,7 +418,7 @@ def _build_preset_modes(
 
 def _valid_sq610_resume_preset_mode(preset_mode: str | None) -> str | None:
     """Return a standby resume preset that is valid for the SQ610 UI."""
-    if preset_mode in SQ610_EXPOSED_PRESET_MODES:
+    if preset_mode in SQ610_BASE_PRESET_MODES:
         return preset_mode
     return None
 

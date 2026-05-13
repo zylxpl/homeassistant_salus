@@ -54,12 +54,10 @@ SQ610_RESUME_PRESET_TO_RAW = {
     PRESET_FOLLOW_SCHEDULE: RAW_PRESET_FOLLOW_SCHEDULE,
     PRESET_PERMANENT_HOLD: RAW_PRESET_PERMANENT_HOLD,
     PRESET_AWAY: RAW_PRESET_AWAY,
-    PRESET_SCHEDULE_OVERRIDE: RAW_PRESET_SCHEDULE_OVERRIDE,
 }
 FC600_RESUME_PRESET_TO_RAW = {
     PRESET_FOLLOW_SCHEDULE: RAW_PRESET_FOLLOW_SCHEDULE,
     PRESET_PERMANENT_HOLD: RAW_PRESET_PERMANENT_HOLD,
-    PRESET_SCHEDULE_OVERRIDE: RAW_PRESET_SCHEDULE_OVERRIDE,
     PRESET_ECO: RAW_PRESET_ECO,
 }
 SQ610_HOLD_TO_PRESET = {
@@ -309,7 +307,7 @@ class SalusThermostat(SalusEntity, ClimateEntity):
     def _remember_current_sq610_preset(self) -> None:
         """Remember the last active hold/schedule preset for standby resume."""
         preset_mode = self._current_sq610_preset_mode()
-        if preset_mode is not None:
+        if preset_mode is not None and preset_mode in SQ610_RESUME_PRESET_TO_RAW:
             self._sq610_resume_preset_mode = preset_mode
 
     def _current_fc600_preset_mode(self) -> str | None:
@@ -319,7 +317,7 @@ class SalusThermostat(SalusEntity, ClimateEntity):
     def _remember_current_fc600_preset(self) -> None:
         """Remember the last active FC600 preset for off-state resume."""
         preset_mode = self._current_fc600_preset_mode()
-        if preset_mode is not None:
+        if preset_mode is not None and preset_mode in FC600_RESUME_PRESET_TO_RAW:
             self._fc600_resume_preset_mode = preset_mode
 
     def _remember_current_family_preset(self) -> None:
