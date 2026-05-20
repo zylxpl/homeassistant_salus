@@ -1,5 +1,11 @@
 # Salus iT600 for Home Assistant
 
+[![CI](https://github.com/Jordi-14/homeassistant_salus/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/Jordi-14/homeassistant_salus/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/Jordi-14/homeassistant_salus?display_name=tag)](https://github.com/Jordi-14/homeassistant_salus/releases)
+[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz/)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.8%2B-41BDF5?logo=homeassistant&logoColor=white)](https://www.home-assistant.io/)
+[![License](https://img.shields.io/github/license/Jordi-14/homeassistant_salus)](LICENSE)
+
 A custom [Home Assistant](https://www.home-assistant.io/) integration that lets you control and monitor your [Salus iT600](https://salus-controls.com/) smart home devices **locally** through the UGE600 or UG800 gateway — thermostats, smart plugs, roller shutters, sensors, and more, all without cloud dependency.
 
 ## Features
@@ -95,6 +101,9 @@ This is a local polling integration. Gateway data is refreshed every 20 seconds 
 After a Home Assistant command (e.g. changing a thermostat target temperature or turning on a switch), the integration requests one verification refresh after 5 s by default. This delay is configurable in integration options.
 
 ## Supported devices
+
+For detailed support status, entity coverage, and known limitations, see
+[docs/supported-devices.md](docs/supported-devices.md).
 
 | Category | Devices |
 |---|---|
@@ -227,6 +236,9 @@ Release publishing is documented in [RELEASE.md](RELEASE.md).
 This integration uses `salus-it600-client`, a maintained successor of the original `pyit600` library. Existing Home Assistant config entries keep the same `salus` integration domain, so normal HACS updates only require a restart.
 
 The exact client version is pinned in `custom_components/salus/manifest.json`.
+
+If you are moving from another fork or an older custom repository entry, see
+[docs/migration-from-older-forks.md](docs/migration-from-older-forks.md).
 
 ## Project origin
 
