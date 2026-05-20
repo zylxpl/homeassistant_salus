@@ -1,12 +1,35 @@
-name: Salus Home Assistant support
-description: Report a Salus iT600 Home Assistant integration problem.
-title: "[Support]: "
-labels: ["support"]
+name: Support / Bug
+description: Report a Salus iT600 Home Assistant integration problem or bug.
+title: "[Support/Bug]: "
+labels: ["bug"]
 body:
   - type: markdown
     attributes:
       value: |
-        Use this form for setup, polling, entity, diagnostics, and command issues in Home Assistant.
+        Use this form for setup, polling, entity, diagnostics, migration, and command issues in Home Assistant.
+
+        If you are asking for a new device, new entity, or new behavior, please use the Feature Request template instead.
+
+        Diagnostics are very helpful for Salus issues. To download them:
+        1. Go to **Settings** -> **Devices & Services**.
+        2. Find **Salus iT600**.
+        3. Open the integration menu.
+        4. Click **Download diagnostics**.
+        5. Attach the downloaded JSON file to this issue after reviewing it for private data.
+
+  - type: dropdown
+    id: issue_type
+    attributes:
+      label: What kind of issue is this?
+      options:
+        - Command fails or device cannot be controlled
+        - Entity state is wrong or missing
+        - Device is unavailable or disappears
+        - Setup, authentication, or gateway connection
+        - HACS, migration, or duplicate entities
+        - Other support request
+    validations:
+      required: true
 
   - type: input
     id: home_assistant_version
@@ -25,19 +48,11 @@ body:
       required: true
 
   - type: input
-    id: client_version
-    attributes:
-      label: salus-it600-client version
-      placeholder: "0.4.0"
-    validations:
-      required: true
-
-  - type: input
     id: gateway_model
     attributes:
       label: Gateway model and firmware
       description: Include UGE600/UG800 and firmware version if visible.
-      placeholder: "UGE600, firmware unknown"
+      placeholder: "UG800, firmware 20251118"
     validations:
       required: false
 
@@ -45,6 +60,7 @@ body:
     id: gateway_protocol
     attributes:
       label: Gateway protocol
+      description: Leave as Unknown if you do not know. The integration auto-detects this.
       options:
         - Unknown
         - AES-CBC / legacy
@@ -57,16 +73,43 @@ body:
     attributes:
       label: Affected devices
       description: List device models, entity IDs, and what is wrong.
-      placeholder: "SQ610RF climate.bedroom shows no current temperature."
+      placeholder: |
+        Device model: SQ610RF / FC600 / SP600 / unknown
+        Entity ID: climate.example / switch.example / sensor.example
+        Problem: Describe what is wrong with this device or entity.
     validations:
       required: true
+
+  - type: textarea
+    id: expected_actual
+    attributes:
+      label: Expected and actual behavior
+      placeholder: |
+        Expected: What should happen?
+        Actual: What happens instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: salus_app_behavior
+    attributes:
+      label: Does the same device/action work in the SALUS app?
+      description: If relevant, compare the Home Assistant behavior with the official SALUS app. This helps separate integration issues from device, gateway, or installation issues.
+      placeholder: |
+        Yes, the same action works in the SALUS app.
+        No, the SALUS app also has the same problem.
+        I have not tested this.
+    validations:
+      required: false
 
   - type: textarea
     id: diagnostics
     attributes:
       label: Diagnostics
-      description: Attach diagnostics or paste relevant redacted snippets. The EUID is redacted, but review host/IP and device IDs before posting publicly.
-      placeholder: "Attach config_entry-salus-*.json or paste relevant gateway/device sections."
+      description: Attach diagnostics or paste relevant redacted snippets. The EUID/token is redacted automatically, but review host/IP and device IDs before posting publicly.
+      placeholder: |
+        Attach config_entry-salus-*.json or paste the relevant gateway/device sections.
+        For state or command problems, diagnostics before and after reproducing the issue are especially useful.
     validations:
       required: false
 
@@ -74,7 +117,7 @@ body:
     id: logs
     attributes:
       label: Logs
-      description: Paste relevant Home Assistant logs from startup, reload, polling, or the failed command.
+      description: Paste relevant Home Assistant logs from startup, reload, polling, or the failed command. For best results, enable debug logging from Settings -> Devices & Services -> Salus iT600 -> Enable debug logging, reproduce the issue, then disable debug logging and attach the downloaded log.
       render: text
     validations:
       required: false
@@ -84,8 +127,20 @@ body:
     attributes:
       label: Reproduction steps
       placeholder: |
-        1. Restart Home Assistant.
-        2. Reload the Salus config entry.
-        3. Toggle switch.x or set climate.y target temperature.
+        1. Open the affected entity or integration.
+        2. Perform the action that triggers the issue.
+        3. Describe the result you see.
     validations:
       required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have restarted Home Assistant after installing/updating the integration.
+          required: false
+        - label: I have checked that the device is online in the SALUS app.
+          required: false
+        - label: I have attached diagnostics or explained why I cannot provide them.
+          required: false
