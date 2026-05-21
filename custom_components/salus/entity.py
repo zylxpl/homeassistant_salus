@@ -14,6 +14,27 @@ from salus_it600.exceptions import IT600CommandError, IT600ConnectionError
 from .const import DOMAIN
 from .coordinator import SalusConfigEntry, SalusData, SalusDataUpdateCoordinator
 
+CHILD_ENTITY_NAME_BY_DEVICE_CLASS = {
+    "battery": "Battery",
+    "energy": "Energy",
+    "humidity": "Humidity",
+    "power": "Power",
+    "problem": "Problem",
+    "temperature": "Temperature",
+}
+
+CHILD_ENTITY_NAME_BY_UNIQUE_ID_SUFFIX = (
+    ("_battery_error", "Battery problem"),
+    ("_battery_problem", "Battery problem"),
+    ("_floor_temperature", "Floor temperature"),
+    ("_low_battery", "Low battery"),
+    ("_battery", "Battery"),
+    ("_energy", "Energy"),
+    ("_humidity", "Humidity"),
+    ("_power", "Power"),
+    ("_problem", "Problem"),
+)
+
 
 class SalusEntity(CoordinatorEntity[SalusDataUpdateCoordinator]):
     """Base class for Salus entities."""
@@ -46,6 +67,60 @@ class SalusEntity(CoordinatorEntity[SalusDataUpdateCoordinator]):
         """Return one attribute from the current device snapshot."""
         device = self._device
         return default if device is None else getattr(device, attr, default)
+
+    def _parent_device_name(self, parent_unique_id: str) -> str | None:
+        """Return the name of a parent device from the current data snapshot."""
+        data = self.coordinator.data
+        if data is None:
+            return None
+
+        for collection in (
+            data.climate_devices,
+            data.switch_devices,
+            data.cover_devices,
+            data.binary_sensor_devices,
+            data.sensor_devices,
+        ):
+            device = collection.get(parent_unique_id)
+            name = getattr(device, "name", None)
+            if isinstance(name, str):
+                return name
+
+        for device in data.sensor_devices.values():
+            device_data = getattr(device, "data", None)
+            if not isinstance(device_data, dict):
+                continue
+            if device_data.get("UniID") == parent_unique_id:
+                name = getattr(device, "name", None)
+                if isinstance(name, str):
+                    return name
+
+        return None
+
+    def _child_entity_name(self, device: Any) -> str | None:
+        """Return the short entity name for a child entity."""
+        parent_unique_id = getattr(device, "parent_unique_id", None)
+        if not parent_unique_id:
+            return None
+
+        raw_name = getattr(device, "name", None)
+        parent_name = self._parent_device_name(parent_unique_id)
+        if isinstance(raw_name, str) and isinstance(parent_name, str):
+            child_name = raw_name.removeprefix(parent_name).strip()
+            if child_name:
+                return child_name
+
+        unique_id = getattr(device, "unique_id", self._device_id)
+        if isinstance(unique_id, str):
+            for suffix, name in CHILD_ENTITY_NAME_BY_UNIQUE_ID_SUFFIX:
+                if unique_id.endswith(suffix):
+                    return name
+
+        device_class = getattr(device, "device_class", None)
+        if isinstance(device_class, str):
+            return CHILD_ENTITY_NAME_BY_DEVICE_CLASS.get(device_class)
+
+        return None
 
     async def _async_run_gateway_command(
         self,

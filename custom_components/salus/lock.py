@@ -36,6 +36,7 @@ class SalusThermostatLock(SalusEntity, LockEntity):
     """Representation of a Salus thermostat child lock."""
 
     _attr_entity_category = EntityCategory.CONFIG
+    _attr_name = "Keypad lock"
     _data_collection = "climate_devices"
 
     def __init__(self, coordinator, device_id: str) -> None:

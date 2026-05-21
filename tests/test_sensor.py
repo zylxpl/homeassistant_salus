@@ -32,6 +32,12 @@ class TestSalusSensorProperties:
         entity = SalusSensor(coord, "sensor_001_temp")
         assert entity.unique_id == "sensor_001_temp"
 
+    def test_primary_sensor_name_uses_device_name(self):
+        device = make_sensor_device(unique_id="sensor_001_temp")
+        coord = _coordinator_with_sensors(device)
+        entity = SalusSensor(coord, "sensor_001_temp")
+        assert entity.name is None
+
     def test_native_value(self):
         device = make_sensor_device(state=23.4)
         coord = _coordinator_with_sensors(device)
@@ -144,6 +150,11 @@ class TestSalusBatterySensor:
         # Parent device grouping via parent_unique_id
         assert (DOMAIN, "climate_001") in info["identifiers"]
 
+    def test_child_entity_name(self):
+        coord = _coordinator_with_sensors(self._battery())
+        entity = SalusSensor(coord, "climate_001_battery")
+        assert entity.name == "Battery"
+
 
 class TestSalusHumiditySensor:
     """Test humidity sensor."""
@@ -160,3 +171,16 @@ class TestSalusHumiditySensor:
         assert entity.device_class == SensorDeviceClass.HUMIDITY
         assert entity.state_class == SensorStateClass.MEASUREMENT
         assert entity.native_value == 55
+
+    def test_child_entity_name(self):
+        device = make_sensor_device(
+            unique_id="climate_001_humidity",
+            name="Living Room Humidity",
+            device_class="humidity",
+            unit_of_measurement="%",
+            state=55,
+            parent_unique_id="climate_001",
+        )
+        coord = _coordinator_with_sensors(device)
+        entity = SalusSensor(coord, device.unique_id)
+        assert entity.name == "Humidity"
