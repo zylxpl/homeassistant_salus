@@ -97,6 +97,8 @@ class SalusEntity(CoordinatorEntity[SalusDataUpdateCoordinator]):
         for device in data.sensor_devices.values():
             if getattr(device, "unique_id", None) == exclude_unique_id:
                 continue
+            if getattr(device, "parent_unique_id", None):
+                continue
             device_data = getattr(device, "data", None)
             if not isinstance(device_data, dict):
                 continue

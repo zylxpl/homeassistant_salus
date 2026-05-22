@@ -214,3 +214,28 @@ class TestSalusHumiditySensor:
         entity = SalusSensor(coord, child.unique_id)
         assert entity.translation_key is None
         assert entity.name == "Unknown metric"
+
+    def test_unknown_child_sensor_ignores_sibling_child_as_parent_name(self):
+        sibling = make_sensor_device(
+            unique_id="standalone_001_humidity",
+            name="Living Room Humidity",
+            device_class="humidity",
+            parent_unique_id="standalone_001",
+            data={"UniID": "standalone_001", "Endpoint": 1},
+        )
+        parent = make_sensor_device(
+            unique_id="standalone_001_temp",
+            name="Living Room",
+            data={"UniID": "standalone_001", "Endpoint": 1},
+        )
+        child = make_sensor_device(
+            unique_id="standalone_001_unknown_metric",
+            name="Living Room Unknown metric",
+            device_class=None,
+            parent_unique_id="standalone_001",
+            data={"UniID": "standalone_001", "Endpoint": 1},
+        )
+        coord = _coordinator_with_sensors(sibling, parent, child)
+        entity = SalusSensor(coord, child.unique_id)
+        assert entity.translation_key is None
+        assert entity.name == "Unknown metric"
