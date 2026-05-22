@@ -32,6 +32,13 @@ class TestSalusSensorProperties:
         entity = SalusSensor(coord, "sensor_001_temp")
         assert entity.unique_id == "sensor_001_temp"
 
+    def test_primary_sensor_name_uses_device_name(self):
+        device = make_sensor_device(unique_id="sensor_001_temp")
+        coord = _coordinator_with_sensors(device)
+        entity = SalusSensor(coord, "sensor_001_temp")
+        assert entity.name is None
+        assert entity.translation_key is None
+
     def test_native_value(self):
         device = make_sensor_device(state=23.4)
         coord = _coordinator_with_sensors(device)
@@ -144,6 +151,11 @@ class TestSalusBatterySensor:
         # Parent device grouping via parent_unique_id
         assert (DOMAIN, "climate_001") in info["identifiers"]
 
+    def test_child_entity_translation_key(self):
+        coord = _coordinator_with_sensors(self._battery())
+        entity = SalusSensor(coord, "climate_001_battery")
+        assert entity.translation_key == "battery"
+
 
 class TestSalusHumiditySensor:
     """Test humidity sensor."""
@@ -160,3 +172,70 @@ class TestSalusHumiditySensor:
         assert entity.device_class == SensorDeviceClass.HUMIDITY
         assert entity.state_class == SensorStateClass.MEASUREMENT
         assert entity.native_value == 55
+
+    def test_child_entity_translation_key(self):
+        device = make_sensor_device(
+            unique_id="climate_001_humidity",
+            name="Living Room Humidity",
+            device_class="humidity",
+            unit_of_measurement="%",
+            state=55,
+            parent_unique_id="climate_001",
+        )
+        coord = _coordinator_with_sensors(device)
+        entity = SalusSensor(coord, device.unique_id)
+        assert entity.translation_key == "humidity"
+
+    def test_floor_temperature_translation_key(self):
+        device = make_sensor_device(
+            unique_id="climate_001_floor_temperature",
+            name="Living Room Floor temperature",
+            device_class="temperature",
+            parent_unique_id="climate_001",
+        )
+        coord = _coordinator_with_sensors(device)
+        entity = SalusSensor(coord, device.unique_id)
+        assert entity.translation_key == "floor_temperature"
+
+    def test_unknown_child_sensor_uses_fallback_name_from_parent_prefix(self):
+        parent = make_sensor_device(
+            unique_id="standalone_001_temp",
+            name="Living Room",
+            data={"UniID": "standalone_001", "Endpoint": 1},
+        )
+        child = make_sensor_device(
+            unique_id="standalone_001_unknown_metric",
+            name="Living Room Unknown metric",
+            device_class=None,
+            parent_unique_id="standalone_001",
+            data={"UniID": "standalone_001", "Endpoint": 1},
+        )
+        coord = _coordinator_with_sensors(parent, child)
+        entity = SalusSensor(coord, child.unique_id)
+        assert entity.translation_key is None
+        assert entity.name == "Unknown metric"
+
+    def test_unknown_child_sensor_ignores_sibling_child_as_parent_name(self):
+        sibling = make_sensor_device(
+            unique_id="standalone_001_humidity",
+            name="Living Room Humidity",
+            device_class="humidity",
+            parent_unique_id="standalone_001",
+            data={"UniID": "standalone_001", "Endpoint": 1},
+        )
+        parent = make_sensor_device(
+            unique_id="standalone_001_temp",
+            name="Living Room",
+            data={"UniID": "standalone_001", "Endpoint": 1},
+        )
+        child = make_sensor_device(
+            unique_id="standalone_001_unknown_metric",
+            name="Living Room Unknown metric",
+            device_class=None,
+            parent_unique_id="standalone_001",
+            data={"UniID": "standalone_001", "Endpoint": 1},
+        )
+        coord = _coordinator_with_sensors(sibling, parent, child)
+        entity = SalusSensor(coord, child.unique_id)
+        assert entity.translation_key is None
+        assert entity.name == "Unknown metric"

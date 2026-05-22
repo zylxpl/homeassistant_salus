@@ -14,12 +14,34 @@ from salus_it600.exceptions import IT600CommandError, IT600ConnectionError
 from .const import DOMAIN
 from .coordinator import SalusConfigEntry, SalusData, SalusDataUpdateCoordinator
 
+CHILD_ENTITY_TRANSLATION_KEY_BY_DEVICE_CLASS = {
+    "battery": "battery",
+    "energy": "energy",
+    "humidity": "humidity",
+    "power": "power",
+    "problem": "problem",
+    "temperature": "temperature",
+    "window": "open_window",
+}
+
+CHILD_ENTITY_TRANSLATION_KEY_BY_UNIQUE_ID_SUFFIX = (
+    ("_battery_error", "battery_problem"),
+    ("_battery_problem", "battery_problem"),
+    ("_floor_temperature", "floor_temperature"),
+    ("_low_battery", "low_battery"),
+    ("_open_window", "open_window"),
+    ("_battery", "battery"),
+    ("_energy", "energy"),
+    ("_humidity", "humidity"),
+    ("_power", "power"),
+    ("_problem", "problem"),
+)
+
 
 class SalusEntity(CoordinatorEntity[SalusDataUpdateCoordinator]):
     """Base class for Salus entities."""
 
     _attr_has_entity_name = True
-    _attr_name = None
     _data_collection: str | None = None
 
     def __init__(
@@ -46,6 +68,101 @@ class SalusEntity(CoordinatorEntity[SalusDataUpdateCoordinator]):
         """Return one attribute from the current device snapshot."""
         device = self._device
         return default if device is None else getattr(device, attr, default)
+
+    def _parent_device_name(
+        self,
+        parent_unique_id: str,
+        *,
+        exclude_unique_id: str | None = None,
+    ) -> str | None:
+        """Return the name of a parent device from the current data snapshot."""
+        data = self.coordinator.data
+        if data is None:
+            return None
+
+        for collection in (
+            data.climate_devices,
+            data.switch_devices,
+            data.cover_devices,
+            data.binary_sensor_devices,
+            data.sensor_devices,
+        ):
+            device = collection.get(parent_unique_id)
+            if getattr(device, "unique_id", None) == exclude_unique_id:
+                continue
+            name = getattr(device, "name", None)
+            if isinstance(name, str):
+                return name
+
+        for device in data.sensor_devices.values():
+            if getattr(device, "unique_id", None) == exclude_unique_id:
+                continue
+            if getattr(device, "parent_unique_id", None):
+                continue
+            device_data = getattr(device, "data", None)
+            if not isinstance(device_data, dict):
+                continue
+            if device_data.get("UniID") == parent_unique_id:
+                name = getattr(device, "name", None)
+                if isinstance(name, str):
+                    return name
+
+        return None
+
+    def _child_entity_translation_key(self, device: Any) -> str | None:
+        """Return the translation key for a child entity."""
+        parent_unique_id = getattr(device, "parent_unique_id", None)
+        if not parent_unique_id:
+            return None
+
+        unique_id = getattr(device, "unique_id", self._device_id)
+        if isinstance(unique_id, str):
+            suffix_keys = CHILD_ENTITY_TRANSLATION_KEY_BY_UNIQUE_ID_SUFFIX
+            for suffix, translation_key in suffix_keys:
+                if unique_id.endswith(suffix):
+                    return translation_key
+
+        device_class = getattr(device, "device_class", None)
+        if isinstance(device_class, str):
+            return CHILD_ENTITY_TRANSLATION_KEY_BY_DEVICE_CLASS.get(device_class)
+
+        return None
+
+    def _child_entity_fallback_name(self, device: Any) -> str | None:
+        """Return a fallback short name for an unknown child entity."""
+        parent_unique_id = getattr(device, "parent_unique_id", None)
+        if not parent_unique_id:
+            return None
+
+        raw_name = getattr(device, "name", None)
+        parent_name = self._parent_device_name(
+            parent_unique_id,
+            exclude_unique_id=getattr(device, "unique_id", self._device_id),
+        )
+        if not isinstance(raw_name, str) or not isinstance(parent_name, str):
+            return None
+
+        if not raw_name.startswith(parent_name):
+            return None
+
+        child_name = raw_name.removeprefix(parent_name).strip()
+        if child_name:
+            return child_name
+
+        return None
+
+    def _set_child_entity_name_metadata(self, device: Any | None) -> None:
+        """Set translated or fallback naming metadata for a child entity."""
+        if device is None or not getattr(device, "parent_unique_id", None):
+            self._attr_name = None
+            return
+
+        if translation_key := self._child_entity_translation_key(device):
+            self._attr_translation_key = translation_key
+            return
+
+        if fallback_name := self._child_entity_fallback_name(device):
+            self._attr_name = fallback_name
 
     async def _async_run_gateway_command(
         self,

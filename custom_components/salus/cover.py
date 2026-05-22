@@ -34,6 +34,7 @@ async def async_setup_entry(
 class SalusCover(SalusEntity, CoverEntity):
     """Representation of a Salus cover."""
 
+    _attr_name = None
     _data_collection = "cover_devices"
 
     @property
