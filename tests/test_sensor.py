@@ -196,3 +196,21 @@ class TestSalusHumiditySensor:
         coord = _coordinator_with_sensors(device)
         entity = SalusSensor(coord, device.unique_id)
         assert entity.translation_key == "floor_temperature"
+
+    def test_unknown_child_sensor_uses_fallback_name_from_parent_prefix(self):
+        parent = make_sensor_device(
+            unique_id="standalone_001_temp",
+            name="Living Room",
+            data={"UniID": "standalone_001", "Endpoint": 1},
+        )
+        child = make_sensor_device(
+            unique_id="standalone_001_unknown_metric",
+            name="Living Room Unknown metric",
+            device_class=None,
+            parent_unique_id="standalone_001",
+            data={"UniID": "standalone_001", "Endpoint": 1},
+        )
+        coord = _coordinator_with_sensors(parent, child)
+        entity = SalusSensor(coord, child.unique_id)
+        assert entity.translation_key is None
+        assert entity.name == "Unknown metric"

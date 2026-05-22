@@ -69,7 +69,12 @@ class SalusEntity(CoordinatorEntity[SalusDataUpdateCoordinator]):
         device = self._device
         return default if device is None else getattr(device, attr, default)
 
-    def _parent_device_name(self, parent_unique_id: str) -> str | None:
+    def _parent_device_name(
+        self,
+        parent_unique_id: str,
+        *,
+        exclude_unique_id: str | None = None,
+    ) -> str | None:
         """Return the name of a parent device from the current data snapshot."""
         data = self.coordinator.data
         if data is None:
@@ -83,11 +88,15 @@ class SalusEntity(CoordinatorEntity[SalusDataUpdateCoordinator]):
             data.sensor_devices,
         ):
             device = collection.get(parent_unique_id)
+            if getattr(device, "unique_id", None) == exclude_unique_id:
+                continue
             name = getattr(device, "name", None)
             if isinstance(name, str):
                 return name
 
         for device in data.sensor_devices.values():
+            if getattr(device, "unique_id", None) == exclude_unique_id:
+                continue
             device_data = getattr(device, "data", None)
             if not isinstance(device_data, dict):
                 continue
@@ -124,7 +133,10 @@ class SalusEntity(CoordinatorEntity[SalusDataUpdateCoordinator]):
             return None
 
         raw_name = getattr(device, "name", None)
-        parent_name = self._parent_device_name(parent_unique_id)
+        parent_name = self._parent_device_name(
+            parent_unique_id,
+            exclude_unique_id=getattr(device, "unique_id", self._device_id),
+        )
         if not isinstance(raw_name, str) or not isinstance(parent_name, str):
             return None
 
