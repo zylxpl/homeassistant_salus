@@ -33,12 +33,10 @@ class SalusBinarySensor(SalusEntity, BinarySensorEntity):
 
     _data_collection = "binary_sensor_devices"
 
-    @property
-    def name(self) -> str | None:
-        """Return the entity name."""
-        if self._device is None:
-            return None
-        return self._child_entity_name(self._device)
+    def __init__(self, coordinator, device_id: str) -> None:
+        """Initialize a Salus binary sensor entity."""
+        super().__init__(coordinator, device_id)
+        self._set_child_entity_name_metadata(self._device)
 
     @property
     def is_on(self) -> bool | None:

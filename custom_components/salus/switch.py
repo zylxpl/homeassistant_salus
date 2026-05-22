@@ -32,6 +32,7 @@ async def async_setup_entry(
 class SalusSwitch(SalusEntity, SwitchEntity):
     """Representation of a Salus switch."""
 
+    _attr_name = None
     _data_collection = "switch_devices"
 
     def _device_info_unique_id(self, device: Any) -> str:

@@ -40,11 +40,11 @@ class TestSalusThermostatLockProperties:
         entity = SalusThermostatLock(coord, device.unique_id)
         assert entity.entity_category == EntityCategory.CONFIG
 
-    def test_name(self):
+    def test_translation_key(self):
         device = make_climate_device(locked=False)
         coord = _coordinator_with_lockable_climate(device)
         entity = SalusThermostatLock(coord, device.unique_id)
-        assert entity.name == "Keypad lock"
+        assert entity.translation_key == "keypad_lock"
 
     def test_is_locked_false(self):
         device = make_climate_device(locked=False)

@@ -41,12 +41,10 @@ class SalusSensor(SalusEntity, SensorEntity):
 
     _data_collection = "sensor_devices"
 
-    @property
-    def name(self) -> str | None:
-        """Return the entity name."""
-        if self._device is None:
-            return None
-        return self._child_entity_name(self._device)
+    def __init__(self, coordinator, device_id: str) -> None:
+        """Initialize a Salus sensor entity."""
+        super().__init__(coordinator, device_id)
+        self._set_child_entity_name_metadata(self._device)
 
     def _device_info_unique_id(self, device: Any) -> str:
         """Group primary standalone sensors under their physical Salus device."""
