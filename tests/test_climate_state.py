@@ -39,7 +39,6 @@ from custom_components.salus._climate_state import (
     PRESET_ECO,
     PRESET_FOLLOW_SCHEDULE,
     PRESET_PERMANENT_HOLD,
-    PRESET_SCHEDULE_OVERRIDE,
     build_climate_view_state,
 )
 
@@ -118,7 +117,7 @@ SQ610_COOLING = {
                 HVACAction.COOLING,
                 22.5,
                 PRESET_PERMANENT_HOLD,
-                [PRESET_PERMANENT_HOLD, PRESET_FOLLOW_SCHEDULE, PRESET_AWAY, PRESET_SCHEDULE_OVERRIDE],
+                [PRESET_PERMANENT_HOLD, PRESET_FOLLOW_SCHEDULE, PRESET_AWAY],
             ),
             id="sq610_cooling_setpoint",
         ),

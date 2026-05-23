@@ -402,7 +402,7 @@ def _build_preset_modes(
     if device and capabilities.is_sq610:
         hold_type = getattr(device, "hold_type", None)
         modes = list(SQ610_BASE_PRESET_MODES)
-        if hold_type == HoldType.TEMPORARY_HOLD or hold_type == HoldType.PERMANENT_HOLD:
+        if hold_type == HoldType.TEMPORARY_HOLD:
             modes.append(PRESET_SCHEDULE_OVERRIDE)
         return modes
     if device and capabilities.is_fc600:

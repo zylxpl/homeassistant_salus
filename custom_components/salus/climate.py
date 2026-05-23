@@ -85,7 +85,6 @@ EXPOSED_PRESET_TO_RAW = {
     PRESET_FOLLOW_SCHEDULE: RAW_PRESET_FOLLOW_SCHEDULE,
     PRESET_ECO: RAW_PRESET_ECO,
     PRESET_AWAY: RAW_PRESET_AWAY,
-    PRESET_SCHEDULE_OVERRIDE: RAW_PRESET_SCHEDULE_OVERRIDE,
 }
 
 
@@ -541,11 +540,19 @@ class SalusThermostat(SalusEntity, ClimateEntity):
 
     async def async_set_preset_mode(self, preset_mode: str) -> None:
         """Set the exposed Salus hold mode."""
+        if preset_mode != PRESET_STANDBY and preset_mode not in self.preset_modes:
+            _LOGGER.warning(
+                "Ignoring unsupported preset mode request for %s: %s",
+                self._device_id,
+                preset_mode,
+            )
+            return
+
+        if preset_mode == PRESET_SCHEDULE_OVERRIDE:
+            return
+
         raw_preset_mode = EXPOSED_PRESET_TO_RAW.get(preset_mode)
-        if raw_preset_mode is None or (
-            preset_mode != PRESET_STANDBY
-            and preset_mode not in self.preset_modes
-        ):
+        if raw_preset_mode is None:
             _LOGGER.warning(
                 "Ignoring unsupported preset mode request for %s: %s",
                 self._device_id,

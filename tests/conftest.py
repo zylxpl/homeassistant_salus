@@ -201,7 +201,7 @@ def make_fc600_device(unique_id: str = "fc600-1", name: str = "Fan Coil") -> Sim
         hvac_mode="heat",
         hvac_modes=["off", "heat", "cool", "auto"],
         preset_mode="Follow Schedule",
-        preset_modes=["Follow Schedule", "Permanent Hold", "Schedule Override", "Eco", "Off"],
+        preset_modes=["Follow Schedule", "Permanent Hold", "Eco", "Off"],
         fan_mode="Auto",
         fan_modes=["Auto", "High", "Medium", "Low", "Off"],
         locked=None,

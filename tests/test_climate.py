@@ -6,12 +6,17 @@ import pytest
 from homeassistant.components.climate import ClimateEntityFeature, HVACAction, HVACMode
 from homeassistant.const import UnitOfTemperature
 from homeassistant.exceptions import HomeAssistantError
-from salus_it600.const import CURRENT_HVAC_COOL, CURRENT_HVAC_HEAT, CURRENT_HVAC_IDLE, HoldType
+from salus_it600.const import (
+    CURRENT_HVAC_COOL,
+    CURRENT_HVAC_HEAT,
+    CURRENT_HVAC_IDLE,
+    HoldType,
+)
 from salus_it600.device_models import (
     SQ610_HOLD_AUTO,
+    SQ610_HOLD_AWAY,
     SQ610_HOLD_PERMANENT,
     SQ610_HOLD_STANDBY,
-    SQ610_HOLD_AWAY,
     SQ610_MODE_COOL,
     SQ610_RUNNING_COOL,
     SQ610_RUNNING_HEAT,
@@ -19,17 +24,17 @@ from salus_it600.device_models import (
 from salus_it600.exceptions import IT600ConnectionError
 
 from custom_components.salus._climate_state import (
+    PRESET_AWAY,
     PRESET_ECO,
     PRESET_FOLLOW_SCHEDULE,
     PRESET_PERMANENT_HOLD,
-    PRESET_STANDBY,
-    PRESET_AWAY,
     PRESET_SCHEDULE_OVERRIDE,
+    PRESET_STANDBY,
+    RAW_PRESET_AWAY,
     RAW_PRESET_ECO,
     RAW_PRESET_FOLLOW_SCHEDULE,
     RAW_PRESET_OFF,
     RAW_PRESET_PERMANENT_HOLD,
-    RAW_PRESET_AWAY,
     RAW_PRESET_SCHEDULE_OVERRIDE,
 )
 from custom_components.salus.climate import SalusThermostat
@@ -297,7 +302,6 @@ class TestSQ610Properties:
             PRESET_PERMANENT_HOLD,
             PRESET_FOLLOW_SCHEDULE,
             PRESET_AWAY,
-            PRESET_SCHEDULE_OVERRIDE,
         ]
 
     def test_preset_modes_for_sq610_follow_schedule_hides_override(self):
@@ -577,7 +581,6 @@ class TestSQ610Commands:
             (PRESET_FOLLOW_SCHEDULE, RAW_PRESET_FOLLOW_SCHEDULE),
             (PRESET_PERMANENT_HOLD, RAW_PRESET_PERMANENT_HOLD),
             (PRESET_AWAY, RAW_PRESET_AWAY),
-            (PRESET_SCHEDULE_OVERRIDE, RAW_PRESET_SCHEDULE_OVERRIDE),
             (PRESET_STANDBY, RAW_PRESET_OFF),
         ],
     )
@@ -590,6 +593,18 @@ class TestSQ610Commands:
             coord,
             _gateway_call("set_climate_preset", device, raw_preset),
         )
+
+    async def test_schedule_override_is_report_only_when_active(self):
+        device = make_climate_device()
+        _, coord, entity = _thermostat(
+            device,
+            _fields(device, hold_type=HoldType.TEMPORARY_HOLD),
+        )
+        assert PRESET_SCHEDULE_OVERRIDE in entity.preset_modes
+
+        await entity.async_set_preset_mode(PRESET_SCHEDULE_OVERRIDE)
+
+        _assert_gateway_calls(coord)  # no gateway calls
 
     async def test_set_preset_while_standby_turns_on(self):
         device = make_climate_device()
@@ -926,7 +941,7 @@ class TestPresetCapabilityGating:
 
         _assert_gateway_calls(coord)  # no gateway calls
 
-    async def test_schedule_override_accepted_for_fc600_when_active(self):
+    async def test_schedule_override_report_only_for_fc600_when_active(self):
         device = make_fc600_device()
         device.hold_type = HoldType.TEMPORARY_HOLD
         device.preset_mode = RAW_PRESET_SCHEDULE_OVERRIDE
@@ -936,10 +951,7 @@ class TestPresetCapabilityGating:
 
         await entity.async_set_preset_mode(PRESET_SCHEDULE_OVERRIDE)
 
-        _assert_gateway_calls(
-            coord,
-            _gateway_call("set_climate_preset", device, RAW_PRESET_SCHEDULE_OVERRIDE),
-        )
+        _assert_gateway_calls(coord)  # no gateway calls
 
     @pytest.mark.parametrize("preset_mode", [PRESET_AWAY, PRESET_SCHEDULE_OVERRIDE])
     async def test_sq610_specific_presets_rejected_for_heat_only(self, preset_mode):
