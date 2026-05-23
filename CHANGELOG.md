@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.2 - 2026-05-22
+
+Polish:
+
+- Improve generated entity names so Home Assistant can use device-level naming
+  consistently across Salus entities.
+- Add localized entity-name strings for English and Catalan.
+- Add migration guidance, supported-device documentation, and GitHub issue/PR
+  templates.
+
 ## 0.8.1 - 2026-05-08
 
 Best-practice hardening:

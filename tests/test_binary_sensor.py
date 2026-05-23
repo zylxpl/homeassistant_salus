@@ -31,6 +31,13 @@ class TestSalusBinarySensorProperties:
         entity = SalusBinarySensor(coord, "binary_001")
         assert entity.unique_id == "binary_001"
 
+    def test_primary_binary_sensor_name_uses_device_name(self):
+        device = make_binary_sensor_device(unique_id="binary_001")
+        coord = _coordinator_with_binary_sensors(device)
+        entity = SalusBinarySensor(coord, "binary_001")
+        assert entity.name is None
+        assert entity.translation_key is None
+
     def test_is_on_false(self):
         device = make_binary_sensor_device(is_on=False)
         coord = _coordinator_with_binary_sensors(device)
@@ -137,6 +144,12 @@ class TestSalusBinarySensorParentDevice:
             "errors": ["Paired TRV hardware issue"]
         }
 
+    def test_child_entity_translation_key(self):
+        device = self._error_device()
+        coord = _coordinator_with_binary_sensors(device)
+        entity = SalusBinarySensor(coord, device.unique_id)
+        assert entity.translation_key == "problem"
+
 
 class TestLowBatterySensor:
     """Test low_battery binary sensor (TRV)."""
@@ -156,3 +169,31 @@ class TestLowBatterySensor:
         assert entity.device_class == "battery"
         assert entity.is_on is False
         assert entity.entity_category == EntityCategory.DIAGNOSTIC
+        assert entity.translation_key == "battery_problem"
+
+    def test_low_battery_sensor_translation_key(self):
+        device = make_binary_sensor_device(
+            unique_id="window_001_low_battery",
+            name="Window Low battery",
+            model="SW600",
+            is_on=False,
+            device_class="battery",
+            parent_unique_id="window_001",
+            entity_category="diagnostic",
+        )
+        coord = _coordinator_with_binary_sensors(device)
+        entity = SalusBinarySensor(coord, device.unique_id)
+        assert entity.translation_key == "low_battery"
+
+    def test_open_window_sensor_translation_key(self):
+        device = make_binary_sensor_device(
+            unique_id="climate_001_open_window",
+            name="Living Room Open window",
+            model="SQ610RF",
+            is_on=True,
+            device_class="window",
+            parent_unique_id="climate_001",
+        )
+        coord = _coordinator_with_binary_sensors(device)
+        entity = SalusBinarySensor(coord, device.unique_id)
+        assert entity.translation_key == "open_window"

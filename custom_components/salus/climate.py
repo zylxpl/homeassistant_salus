@@ -107,6 +107,7 @@ class SalusThermostat(SalusEntity, ClimateEntity):
     """Representation of a Salus thermostat."""
 
     _enable_turn_on_off_backwards_compatibility = False
+    _attr_name = None
     _attr_translation_key = "thermostat"
     _data_collection = "climate_devices"
 

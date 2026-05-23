@@ -68,6 +68,23 @@
     }
   },
   "entity": {
+    "binary_sensor": {
+      "battery": {
+        "name": "Battery"
+      },
+      "battery_problem": {
+        "name": "Battery problem"
+      },
+      "low_battery": {
+        "name": "Low battery"
+      },
+      "open_window": {
+        "name": "Open window"
+      },
+      "problem": {
+        "name": "Problem"
+      }
+    },
     "climate": {
       "thermostat": {
         "state_attributes": {
@@ -82,6 +99,31 @@
             }
           }
         }
+      }
+    },
+    "lock": {
+      "keypad_lock": {
+        "name": "Keypad lock"
+      }
+    },
+    "sensor": {
+      "battery": {
+        "name": "Battery"
+      },
+      "energy": {
+        "name": "Energy"
+      },
+      "floor_temperature": {
+        "name": "Floor temperature"
+      },
+      "humidity": {
+        "name": "Humidity"
+      },
+      "power": {
+        "name": "Power"
+      },
+      "temperature": {
+        "name": "Temperature"
       }
     }
   }

@@ -41,6 +41,11 @@ class SalusSensor(SalusEntity, SensorEntity):
 
     _data_collection = "sensor_devices"
 
+    def __init__(self, coordinator, device_id: str) -> None:
+        """Initialize a Salus sensor entity."""
+        super().__init__(coordinator, device_id)
+        self._set_child_entity_name_metadata(self._device)
+
     def _device_info_unique_id(self, device: Any) -> str:
         """Group primary standalone sensors under their physical Salus device."""
         device_data = getattr(device, "data", None)

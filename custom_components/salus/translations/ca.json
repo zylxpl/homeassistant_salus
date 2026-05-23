@@ -68,6 +68,23 @@
         }
     },
     "entity": {
+        "binary_sensor": {
+            "battery": {
+                "name": "Bateria"
+            },
+            "battery_problem": {
+                "name": "Problema de bateria"
+            },
+            "low_battery": {
+                "name": "Bateria baixa"
+            },
+            "open_window": {
+                "name": "Finestra oberta"
+            },
+            "problem": {
+                "name": "Problema"
+            }
+        },
         "climate": {
             "thermostat": {
                 "state_attributes": {
@@ -82,6 +99,31 @@
                         }
                     }
                 }
+            }
+        },
+        "lock": {
+            "keypad_lock": {
+                "name": "Bloqueig del teclat"
+            }
+        },
+        "sensor": {
+            "battery": {
+                "name": "Bateria"
+            },
+            "energy": {
+                "name": "Energia"
+            },
+            "floor_temperature": {
+                "name": "Temperatura del terra"
+            },
+            "humidity": {
+                "name": "Humitat"
+            },
+            "power": {
+                "name": "Potència"
+            },
+            "temperature": {
+                "name": "Temperatura"
             }
         }
     }

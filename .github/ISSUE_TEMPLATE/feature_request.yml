@@ -1,0 +1,84 @@
+name: Feature Request
+description: Request a new device, entity, sensor, control, or integration behavior.
+title: "[Feature Request]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for new devices, new entities, additions to existing devices, or behavior improvements.
+
+        If something that used to work is broken, please use the Support / Bug template instead.
+
+  - type: dropdown
+    id: request_type
+    attributes:
+      label: What kind of feature is this?
+      options:
+        - New device support
+        - New entity or sensor for an existing device
+        - New control or service for an existing device
+        - Documentation or migration improvement
+        - Other behavior improvement
+    validations:
+      required: true
+
+  - type: textarea
+    id: request
+    attributes:
+      label: What would you like to add?
+      placeholder: |
+        Describe the new device support, entity, control, sensor, option, or behavior you would like.
+    validations:
+      required: true
+
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Why is this useful?
+      description: Describe the automation, dashboard, helper, integration, or device setup this would improve.
+      placeholder: |
+        Explain what this would make possible or easier in Home Assistant.
+    validations:
+      required: true
+
+  - type: textarea
+    id: current_workaround
+    attributes:
+      label: Current workaround
+      description: If there is a workaround, describe it.
+      placeholder: |
+        Describe any template, automation, manual step, or alternative entity you currently use.
+    validations:
+      required: false
+
+  - type: textarea
+    id: affected_devices
+    attributes:
+      label: Affected devices
+      description: List device model names, entity IDs, or gateway details if relevant.
+      placeholder: |
+        Device model:
+        Entity ID:
+        Gateway model/firmware:
+    validations:
+      required: false
+
+  - type: textarea
+    id: proposed_entities
+    attributes:
+      label: Proposed Home Assistant entities or behavior
+      description: Optional, but useful if you have a concrete name or behavior in mind.
+      placeholder: |
+        Suggested entity names, controls, options, or behavior.
+    validations:
+      required: false
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: For new device support or additions to existing devices, attach diagnostics if possible. Download them from Settings -> Devices & Services -> Salus iT600 -> Download diagnostics.
+      placeholder: "Attach config_entry-salus-*.json if the feature depends on device payload data."
+    validations:
+      required: false
