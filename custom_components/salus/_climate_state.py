@@ -43,6 +43,13 @@ PRESET_FOLLOW_SCHEDULE = "follow_schedule"
 PRESET_ECO = HA_PRESET_ECO
 PRESET_AWAY = "away"
 PRESET_SCHEDULE_OVERRIDE = "schedule_override"
+PRESET_MODE_DISPLAY_ORDER = (
+    PRESET_PERMANENT_HOLD,
+    PRESET_FOLLOW_SCHEDULE,
+    PRESET_SCHEDULE_OVERRIDE,
+    PRESET_ECO,
+    PRESET_AWAY,
+)
 SQ610_RESUME_PRESET_MODES = [
     PRESET_FOLLOW_SCHEDULE,
     PRESET_PERMANENT_HOLD,
@@ -395,7 +402,10 @@ def _ha_preset_modes(device: Any) -> list[str]:
     active_preset_mode = _ha_preset_mode(getattr(device, "preset_mode", None))
     if active_preset_mode is not None and active_preset_mode not in modes:
         modes.append(active_preset_mode)
-    return modes
+
+    ordered_modes = [mode for mode in PRESET_MODE_DISPLAY_ORDER if mode in modes]
+    ordered_modes.extend(mode for mode in modes if mode not in ordered_modes)
+    return ordered_modes
 
 
 def _build_preset_modes(

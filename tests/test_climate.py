@@ -314,8 +314,8 @@ class TestSQ610Properties:
         coord = _coordinator_with_climate(device)
         entity = SalusThermostat(coord, device.unique_id)
         assert entity.preset_modes == [
-            PRESET_FOLLOW_SCHEDULE,
             PRESET_PERMANENT_HOLD,
+            PRESET_FOLLOW_SCHEDULE,
             PRESET_AWAY,
         ]
 
@@ -327,8 +327,8 @@ class TestSQ610Properties:
             _fields(device, hold_type=SQ610_HOLD_AUTO),
         )
         assert entity.preset_modes == [
-            PRESET_FOLLOW_SCHEDULE,
             PRESET_PERMANENT_HOLD,
+            PRESET_FOLLOW_SCHEDULE,
             PRESET_AWAY,
         ]
 
@@ -340,9 +340,9 @@ class TestSQ610Properties:
             _fields(device, hold_type=HoldType.TEMPORARY_HOLD),
         )
         assert entity.preset_modes == [
+            PRESET_PERMANENT_HOLD,
             PRESET_FOLLOW_SCHEDULE,
             PRESET_SCHEDULE_OVERRIDE,
-            PRESET_PERMANENT_HOLD,
             PRESET_AWAY,
         ]
 
@@ -354,8 +354,8 @@ class TestSQ610Properties:
             _fields(device, hold_type=SQ610_HOLD_AWAY),
         )
         assert entity.preset_modes == [
-            PRESET_FOLLOW_SCHEDULE,
             PRESET_PERMANENT_HOLD,
+            PRESET_FOLLOW_SCHEDULE,
             PRESET_AWAY,
         ]
 
@@ -407,8 +407,8 @@ class TestFC600Properties:
         coord = _coordinator_with_climate(device)
         entity = SalusThermostat(coord, device.unique_id)
         assert entity.preset_modes == [
-            PRESET_FOLLOW_SCHEDULE,
             PRESET_PERMANENT_HOLD,
+            PRESET_FOLLOW_SCHEDULE,
             PRESET_ECO,
         ]
 
@@ -962,7 +962,12 @@ class TestPresetCapabilityGating:
         device.preset_mode = RAW_PRESET_SCHEDULE_OVERRIDE
         _, coord, entity = _thermostat(device)
 
-        assert PRESET_SCHEDULE_OVERRIDE in entity.preset_modes
+        assert entity.preset_modes == [
+            PRESET_PERMANENT_HOLD,
+            PRESET_FOLLOW_SCHEDULE,
+            PRESET_SCHEDULE_OVERRIDE,
+            PRESET_ECO,
+        ]
 
         await entity.async_set_preset_mode(PRESET_SCHEDULE_OVERRIDE)
 

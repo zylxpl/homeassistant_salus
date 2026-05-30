@@ -168,7 +168,7 @@ SQ610_COOLING = {
                 HVACAction.COOLING,
                 22.5,
                 PRESET_PERMANENT_HOLD,
-                [PRESET_FOLLOW_SCHEDULE, PRESET_PERMANENT_HOLD, PRESET_AWAY],
+                [PRESET_PERMANENT_HOLD, PRESET_FOLLOW_SCHEDULE, PRESET_AWAY],
             ),
             id="sq610_cooling_setpoint",
         ),
@@ -361,7 +361,7 @@ def test_fc600_fan_modes_are_exposed(model: str) -> None:
         True,
         [HVACMode.OFF, HVACMode.HEAT, HVACMode.COOL],
         HVACMode.COOL,
-        [PRESET_FOLLOW_SCHEDULE, PRESET_PERMANENT_HOLD, PRESET_ECO],
+        [PRESET_PERMANENT_HOLD, PRESET_FOLLOW_SCHEDULE, PRESET_ECO],
         ["auto", "high"],
     )
     assert state.supported_features & ClimateEntityFeature.FAN_MODE
@@ -428,4 +428,9 @@ def test_fc600_reported_schedule_override_is_in_preset_modes_without_hold_type()
     )
 
     assert state.preset_mode == PRESET_SCHEDULE_OVERRIDE
-    assert state.preset_mode in state.preset_modes
+    assert state.preset_modes == [
+        PRESET_PERMANENT_HOLD,
+        PRESET_FOLLOW_SCHEDULE,
+        PRESET_SCHEDULE_OVERRIDE,
+        PRESET_ECO,
+    ]
