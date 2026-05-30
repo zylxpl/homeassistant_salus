@@ -64,6 +64,7 @@ def _normalized_sq610_device(device, fields):
             if device.hold_type == SQ610_HOLD_STANDBY
             else device.preset_mode
         )
+        device.preset_modes = _sq610_raw_preset_modes(device.preset_mode)
     if "system_mode" in props:
         device.system_mode = props["system_mode"]
         device.hvac_mode = "cool" if device.system_mode == SQ610_MODE_COOL else "heat"
@@ -106,6 +107,20 @@ def _set_sq610_hold(device, hold_type: int) -> None:
         if hold_type == SQ610_HOLD_STANDBY
         else device.preset_mode
     )
+    device.preset_modes = _sq610_raw_preset_modes(device.preset_mode)
+
+
+def _sq610_raw_preset_modes(active_preset: str) -> list[str]:
+    """Return the normalized client preset list for a fake SQ610."""
+    modes = [
+        RAW_PRESET_FOLLOW_SCHEDULE,
+        RAW_PRESET_PERMANENT_HOLD,
+        RAW_PRESET_AWAY,
+        RAW_PRESET_OFF,
+    ]
+    if active_preset == RAW_PRESET_SCHEDULE_OVERRIDE:
+        modes.insert(1, RAW_PRESET_SCHEDULE_OVERRIDE)
+    return modes
 
 
 def _coordinator_with_climate(device, normalized_fields=None):
@@ -299,8 +314,8 @@ class TestSQ610Properties:
         coord = _coordinator_with_climate(device)
         entity = SalusThermostat(coord, device.unique_id)
         assert entity.preset_modes == [
-            PRESET_PERMANENT_HOLD,
             PRESET_FOLLOW_SCHEDULE,
+            PRESET_PERMANENT_HOLD,
             PRESET_AWAY,
         ]
 
@@ -312,8 +327,8 @@ class TestSQ610Properties:
             _fields(device, hold_type=SQ610_HOLD_AUTO),
         )
         assert entity.preset_modes == [
-            PRESET_PERMANENT_HOLD,
             PRESET_FOLLOW_SCHEDULE,
+            PRESET_PERMANENT_HOLD,
             PRESET_AWAY,
         ]
 
@@ -325,10 +340,10 @@ class TestSQ610Properties:
             _fields(device, hold_type=HoldType.TEMPORARY_HOLD),
         )
         assert entity.preset_modes == [
-            PRESET_PERMANENT_HOLD,
             PRESET_FOLLOW_SCHEDULE,
-            PRESET_AWAY,
             PRESET_SCHEDULE_OVERRIDE,
+            PRESET_PERMANENT_HOLD,
+            PRESET_AWAY,
         ]
 
     def test_preset_modes_for_sq610_away_hides_override(self):
@@ -339,8 +354,8 @@ class TestSQ610Properties:
             _fields(device, hold_type=SQ610_HOLD_AWAY),
         )
         assert entity.preset_modes == [
-            PRESET_PERMANENT_HOLD,
             PRESET_FOLLOW_SCHEDULE,
+            PRESET_PERMANENT_HOLD,
             PRESET_AWAY,
         ]
 

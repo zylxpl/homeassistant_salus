@@ -17,10 +17,7 @@ from homeassistant.components.climate.const import (
     HVACAction,
     HVACMode,
 )
-from salus_it600.const import HoldType
 from salus_it600.device_models import (
-    SQ610_HOLD_AUTO,
-    SQ610_HOLD_PERMANENT,
     SQ610_HOLD_STANDBY,
     SQ610_MODE_COOL,
     SQ610_MODE_EMERGENCY_HEAT,
@@ -46,14 +43,9 @@ PRESET_FOLLOW_SCHEDULE = "follow_schedule"
 PRESET_ECO = HA_PRESET_ECO
 PRESET_AWAY = "away"
 PRESET_SCHEDULE_OVERRIDE = "schedule_override"
-EXPOSED_PRESET_MODES = [
-    PRESET_PERMANENT_HOLD,
-    PRESET_STANDBY,
+SQ610_RESUME_PRESET_MODES = [
     PRESET_FOLLOW_SCHEDULE,
-]
-SQ610_BASE_PRESET_MODES = [
     PRESET_PERMANENT_HOLD,
-    PRESET_FOLLOW_SCHEDULE,
     PRESET_AWAY,
 ]
 FC600_EXPOSED_PRESET_MODES = [
@@ -89,17 +81,12 @@ SQ610_SYSTEM_IDLE_MODES = {
     SQ610_MODE_HEAT,
     SQ610_MODE_EMERGENCY_HEAT,
 }
-SQ610_HOLD_TO_HA_PRESET = {
-    SQ610_HOLD_PERMANENT: PRESET_PERMANENT_HOLD,
-    SQ610_HOLD_AUTO: PRESET_FOLLOW_SCHEDULE,
-    HoldType.TEMPORARY_HOLD: PRESET_SCHEDULE_OVERRIDE,
-    HoldType.AWAY: PRESET_AWAY,
-}
-FC600_RAW_PRESET_TO_HA = {
-    RAW_PRESET_ECO: PRESET_ECO,
+RAW_PRESET_TO_HA = {
+    RAW_PRESET_FOLLOW_SCHEDULE: PRESET_FOLLOW_SCHEDULE,
     RAW_PRESET_PERMANENT_HOLD: PRESET_PERMANENT_HOLD,
     RAW_PRESET_SCHEDULE_OVERRIDE: PRESET_SCHEDULE_OVERRIDE,
-    RAW_PRESET_FOLLOW_SCHEDULE: PRESET_FOLLOW_SCHEDULE,
+    RAW_PRESET_ECO: PRESET_ECO,
+    RAW_PRESET_AWAY: PRESET_AWAY,
 }
 MANUAL_PRESET_MODES = {
     RAW_PRESET_PERMANENT_HOLD,
@@ -376,20 +363,39 @@ def _effective_preset_mode(
         hold_type = getattr(device, "hold_type", None)
         if hold_type == SQ610_HOLD_STANDBY:
             return None
-        if hold_type in SQ610_HOLD_TO_HA_PRESET:
-            return SQ610_HOLD_TO_HA_PRESET[hold_type]
+        preset_mode = _ha_preset_mode(getattr(device, "preset_mode", None))
+        if preset_mode is not None:
+            return preset_mode
         if hold_type is not None:
             return _valid_sq610_resume_preset_mode(sq610_resume_preset_mode)
 
     if capabilities.is_fc600:
         if device.preset_mode == RAW_PRESET_OFF:
             return None
-        return FC600_RAW_PRESET_TO_HA.get(
-            device.preset_mode,
-            _valid_fc600_resume_preset_mode(fc600_resume_preset_mode),
+        return _ha_preset_mode(device.preset_mode) or _valid_fc600_resume_preset_mode(
+            fc600_resume_preset_mode
         )
 
     return None
+
+
+def _ha_preset_mode(raw_preset_mode: Any) -> str | None:
+    """Map a normalized client preset to its Home Assistant-facing value."""
+    return RAW_PRESET_TO_HA.get(raw_preset_mode)
+
+
+def _ha_preset_modes(device: Any) -> list[str]:
+    """Map normalized client presets into the HA preset list."""
+    modes: list[str] = []
+    for raw_preset_mode in getattr(device, "preset_modes", None) or ():
+        preset_mode = _ha_preset_mode(raw_preset_mode)
+        if preset_mode is not None and preset_mode not in modes:
+            modes.append(preset_mode)
+
+    active_preset_mode = _ha_preset_mode(getattr(device, "preset_mode", None))
+    if active_preset_mode is not None and active_preset_mode not in modes:
+        modes.append(active_preset_mode)
+    return modes
 
 
 def _build_preset_modes(
@@ -399,26 +405,14 @@ def _build_preset_modes(
     """Return the preset modes to expose for a thermostat."""
     if not capabilities.uses_independent_preset_control:
         return []
-    if device and capabilities.is_sq610:
-        hold_type = getattr(device, "hold_type", None)
-        modes = list(SQ610_BASE_PRESET_MODES)
-        if hold_type == HoldType.TEMPORARY_HOLD:
-            modes.append(PRESET_SCHEDULE_OVERRIDE)
-        return modes
-    if device and capabilities.is_fc600:
-        hold_type = getattr(device, "hold_type", None)
-        modes = [PRESET_FOLLOW_SCHEDULE, PRESET_PERMANENT_HOLD]
-        if hold_type == HoldType.TEMPORARY_HOLD:
-            modes.append(PRESET_SCHEDULE_OVERRIDE)
-        if capabilities.supports_eco:
-            modes.append(PRESET_ECO)
-        return modes
+    if device and (capabilities.is_sq610 or capabilities.is_fc600):
+        return _ha_preset_modes(device)
     return []
 
 
 def _valid_sq610_resume_preset_mode(preset_mode: str | None) -> str | None:
     """Return a standby resume preset that is valid for the SQ610 UI."""
-    if preset_mode in SQ610_BASE_PRESET_MODES:
+    if preset_mode in SQ610_RESUME_PRESET_MODES:
         return preset_mode
     return None
 
