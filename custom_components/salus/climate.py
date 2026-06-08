@@ -576,7 +576,7 @@ class SalusThermostat(SalusEntity, ClimateEntity):
             self._remember_current_family_preset()
             await self._async_set_raw_preset(self._fc600_resume_raw_preset_mode)
             return
-        await self.async_set_preset_mode(PRESET_PERMANENT_HOLD)
+        await self._async_set_raw_preset(RAW_PRESET_PERMANENT_HOLD)
 
     async def async_turn_off(self) -> None:
         """Turn the thermostat off by putting it in standby."""

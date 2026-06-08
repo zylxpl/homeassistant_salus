@@ -903,6 +903,24 @@ class TestFC600Commands:
         )
         assert coord.refresh_requests == 1
 
+    async def test_standard_heat_only_turn_on_sends_permanent_hold(self):
+        device = make_climate_device(
+            model="HTRP-RF(50)",
+            hvac_modes=["heat"],
+            preset_mode=RAW_PRESET_OFF,
+        )
+        _, coord, entity = _thermostat(device)
+
+        assert entity.preset_modes == []
+
+        await entity.async_turn_on()
+
+        _assert_gateway_calls(
+            coord,
+            _gateway_call("set_climate_preset", device, RAW_PRESET_PERMANENT_HOLD),
+        )
+        assert coord.refresh_requests == 1
+
     @pytest.mark.parametrize(
         ("preset_mode", "hvac_mode", "raw_preset"),
         [
